@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<html lang="en"><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24,7 +25,7 @@
         const MAX_PLAYERS = 15;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'pbb-offline-admin-final';
 
-        // --- GLOBAL DATA ---
+        // --- GLOBAL DATA & CONSTANTS ---
         const teams = ["KRISHNAPUR", "ASTIK 11","AYUSHMAN XI","MAHAKAL XI LAULARA","BARABAZAR RED DRAGONS","JOY SHIB SHAMBHU","BABAI XI ADRA","AGGRESSIVE PARBELIA","UTTAM XI PURULIA","MAHADEV WARRIORS","PUNCHA PIRATES","HURA PANTHERS","SHRIHAN XI","MANBHUM WARRIORS","MANBAZAR SUPER KINGS","AAROHI XI"];
 
         const voteCategories = [
@@ -57,9 +58,7 @@
             return "";
         };
 
-        // --- GLOBAL FUNCTIONS ---
-        window.updateTicker = function() {}
-
+        // --- GLOBAL RENDER FUNCTIONS ---
         window.renderVoteResults = function() {
             voteCategories.forEach(cat => {
                 const container = document.getElementById(`voteResult_${cat.id}`);
@@ -74,42 +73,17 @@
             });
         }
 
-        window.populateTeamLists = function() {
-            const selectors = ["teamSelect", "teamTrackerSelect", "voteWinnerSelect"];
-            selectors.forEach(id => {
-                const el = document.getElementById(id);
-                if (!el) return;
-                el.innerHTML = (id === "teamTrackerSelect") ? '<option value="">-- Choose Team to View Squad --</option>' : '<option value="">-- Select Team --</option>';
-                teams.forEach(t => {
-                    const opt = document.createElement("option");
-                    opt.value = t; opt.innerText = t; el.appendChild(opt);
-                });
-            });
+        window.renderApprovedComments = function() {
+            const approved = fanComments.filter(c => c.approved).sort((a,b) => b.timestamp - a.timestamp);
+            const container = document.getElementById("fanSayDisplay");
+            if(!container) return;
+            container.innerHTML = approved.length ? approved.map(c => `<div class="px-4 py-2 border-l-4 border-amber-500 bg-amber-50 rounded-r-xl shadow-sm"><p class="text-sm font-black text-slate-800">"${c.text}"</p><p class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">— ${c.sender}</p></div>`).join('') : "<span class='text-slate-400 font-bold'>Awaiting fan voices...</span>";
         }
 
-        window.searchGlobalPlayer = function() {
-            const input = document.getElementById("globalSearchInput").value.trim().toLowerCase();
-            const resultBox = document.getElementById("globalSearchResult");
-            resultBox.innerHTML = "";
-            if(input.length < 1) return;
-
-            const found = players.filter(p => {
-                if (!p.sr) return false;
-                const s = p.sr.toString();
-                const pad = s.padStart(3, '0');
-                const plain = parseInt(s).toString();
-                const n = p.name.toLowerCase();
-                return s === input || pad === input || plain === input || n.includes(input);
-            }).slice(0, 8);
-
-            found.forEach(p => {
-                const soldInfo = soldPlayers.find(s => s.sr === p.sr);
-                const div = document.createElement("div");
-                div.className = "flex justify-between items-center p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-default";
-                let statusHtml = soldInfo ? `<div class="flex flex-col items-end"><span class="text-[10px] font-black text-sky-700 uppercase">${soldInfo.bidder}</span><span class="text-[10px] font-black text-emerald-600">₹${soldInfo.price}</span></div>` : `<span class="text-slate-400 text-[10px] font-black uppercase">Unsold</span>`;
-                div.innerHTML = `<div class="flex flex-col"><span class="text-xs font-black text-slate-800 uppercase">${getEmoji(p.cat)} ${p.name}</span><span class="text-[10px] text-slate-400 font-bold">SR: ${p.sr.toString().padStart(3, '0')} • ${p.cat}</span></div>${statusHtml}`;
-                resultBox.appendChild(div);
-            });
+        window.renderAdminComments = function() {
+            const container = document.getElementById("adminCommentList");
+            if(!container) return;
+            container.innerHTML = fanComments.sort((a,b) => b.timestamp - a.timestamp).map(c => `<div class="flex justify-between items-center p-3 border-b border-slate-100 ${c.approved ? 'opacity-50' : 'bg-blue-50'}"><div class="flex-1"><p class="text-xs font-black">"${c.text}"</p><p class="text-[9px] font-bold text-slate-400 mt-1">${c.sender}</p></div><div class="flex gap-2">${!c.approved ? `<button onclick="window.approveComment('${c.id}')" class="bg-emerald-600 text-white text-[9px] px-2 py-1 rounded font-black">OK</button>` : ''}<button onclick="window.deleteComment('${c.id}')" class="bg-rose-600 text-white text-[9px] px-2 py-1 rounded font-black">X</button></div></div>`).join('');
         }
 
         window.renderBoard = function() {
@@ -117,7 +91,17 @@
             if (!selRaw) return document.getElementById("adminBoard").innerHTML = "";
             
             const sel = selRaw.trim().toUpperCase();
-            const sq = soldPlayers.filter(p => p.bidder && p.bidder.trim().toUpperCase() === sel).sort((a, b) => a.timestamp - b.timestamp);
+            // Robust matching: handles "SHIB SHAMBHU" vs "JOY SHIB SHAMBHU" vs "SHIB SAMBHU"
+            const sq = soldPlayers.filter(p => {
+                if(!p.bidder) return false;
+                const b = p.bidder.trim().toUpperCase();
+                // Check for direct match or partial match for Shambhu
+                if (sel.includes("SHAMBHU") || sel.includes("SAMBHU")) {
+                    return b.includes("SHAMBHU") || b.includes("SAMBHU");
+                }
+                return b === sel;
+            }).sort((a, b) => a.timestamp - b.timestamp);
+
             const pv = purses[selRaw] !== undefined ? purses[selRaw] : INITIAL_PURSE;
             const slotsLeft = MAX_PLAYERS - sq.length;
 
@@ -127,7 +111,7 @@
                         <div class="font-black text-slate-900 text-2xl tracking-tighter uppercase italic">${selRaw}</div>
                         <div class="grid grid-cols-2 gap-4 mt-2">
                             <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col">
-                                <span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest leading-none">Purse Remaining</span>
+                                <span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest leading-none">Budget Remaining</span>
                                 <span class="text-emerald-700 font-mono font-black text-2xl mt-1">₹${pv}</span>
                             </div>
                             <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col">
@@ -150,14 +134,51 @@
                 </div>`;
         }
 
+        // --- SEARCH & INPUT FUNCTIONS ---
+        window.searchGlobalPlayer = function() {
+            const input = document.getElementById("globalSearchInput").value.trim().toLowerCase();
+            const resultBox = document.getElementById("globalSearchResult");
+            resultBox.innerHTML = "";
+            if(input.length < 1) return;
+
+            const found = players.filter(p => {
+                const s = p.sr ? p.sr.toString() : "";
+                const pad = s.padStart(3, '0');
+                const plain = parseInt(s).toString();
+                const n = p.name ? p.name.toLowerCase() : "";
+                return s === input || pad === input || plain === input || n.includes(input);
+            }).slice(0, 8);
+
+            found.forEach(p => {
+                const soldInfo = soldPlayers.find(s => s.sr === p.sr);
+                const div = document.createElement("div");
+                div.className = "flex justify-between items-center p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-default";
+                let statusHtml = soldInfo ? `<div class="flex flex-col items-end"><span class="text-[10px] font-black text-sky-700 uppercase">${soldInfo.bidder}</span><span class="text-[10px] font-black text-emerald-600">₹${soldInfo.price}</span></div>` : `<span class="text-slate-400 text-[10px] font-black uppercase">Unsold</span>`;
+                div.innerHTML = `<div class="flex flex-col"><span class="text-xs font-black text-slate-800 uppercase">${getEmoji(p.cat)} ${p.name}</span><span class="text-[10px] text-slate-400 font-bold">SR: ${p.sr.toString().padStart(3, '0')} • ${p.cat}</span></div>${statusHtml}`;
+                resultBox.appendChild(div);
+            });
+        }
+
+        window.populateTeamLists = function() {
+            const selectors = ["teamSelect", "teamTrackerSelect", "voteWinnerSelect"];
+            selectors.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.innerHTML = (id === "teamTrackerSelect") ? '<option value="">-- View Team Squad --</option>' : '<option value="">-- Select Team --</option>';
+                teams.forEach(t => {
+                    const opt = document.createElement("option");
+                    opt.value = t; opt.innerText = t; el.appendChild(opt);
+                });
+            });
+        }
+
         window.filterPlayers = function() {
             const input = document.getElementById("playerInput").value.trim().toLowerCase();
             const list = document.getElementById("playerSuggestions");
             list.innerHTML = "";
             if(input.length < 1) return;
             const matches = players.filter(p => {
-                if (!p.sr) return false;
-                const srStr = p.sr.toString();
+                const srStr = p.sr ? p.sr.toString() : "";
                 const srPadded = srStr.padStart(3, '0');
                 return !soldPlayers.some(s => s.sr === p.sr) && (srStr.includes(input) || srPadded.includes(input) || p.name.toLowerCase().includes(input));
             }).slice(0, 5);
@@ -176,13 +197,13 @@
             });
         }
 
-        window.openVoteModal = function() { document.getElementById("voteOverlay").style.display = "flex"; window.renderVoteResults(); }
+        // --- VOTING & ADMIN LOGIC ---
         window.searchVotePlayer = function(catId, filter) {
             const input = document.getElementById(`voteSearch_${catId}`).value.trim().toLowerCase();
             const list = document.getElementById(`voteSuggest_${catId}`);
             list.innerHTML = ""; if(input.length < 1) return;
             const matches = players.filter(p => {
-                const s = p.sr.toString();
+                const s = p.sr ? p.sr.toString() : "";
                 const pad = s.padStart(3, '0');
                 const catMatch = !filter || p.cat === filter;
                 return catMatch && (s === input || pad === input || p.name.toLowerCase().includes(input));
@@ -276,23 +297,7 @@
             document.getElementById("pinOverlay").style.display = "none";
         }
 
-        window.openFanSayModal = function() { document.getElementById("fanSayOverlay").style.display = "flex"; }
-        window.submitFanComment = async function() {
-            const text = document.getElementById("fanCommentInput").value.trim();
-            const sender = document.getElementById("fanSenderInput").value.trim() || "Fan";
-            if(!text) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'fanComments'), { text, sender, timestamp: Date.now(), approved: false });
-            alert("Sent!"); document.getElementById("fanSayOverlay").style.display = "none";
-        }
-
-        window.renderApprovedComments = function() {
-            const approved = fanComments.filter(c => c.approved).sort((a,b) => b.timestamp - a.timestamp);
-            document.getElementById("fanSayDisplay").innerHTML = approved.length ? approved.map(c => `<div class="px-4 py-2 border-l-4 border-amber-500 bg-amber-50 rounded-r-xl shadow-sm"><p class="text-sm font-black text-slate-800">"${c.text}"</p><p class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">— ${c.sender}</p></div>`).join('') : "<span class='text-slate-400 font-bold'>Awaiting fan voices...</span>";
-        }
-
-        window.renderAdminComments = function() {
-            document.getElementById("adminCommentList").innerHTML = fanComments.sort((a,b) => b.timestamp - a.timestamp).map(c => `<div class="flex justify-between items-center p-3 border-b border-slate-100 ${c.approved ? 'opacity-50' : 'bg-blue-50'}"><div class="flex-1"><p class="text-xs font-black">"${c.text}"</p><p class="text-[9px] font-bold text-slate-400 mt-1">${c.sender}</p></div><div class="flex gap-2">${!c.approved ? `<button onclick="window.approveComment('${c.id}')" class="bg-emerald-600 text-white text-[9px] px-2 py-1 rounded font-black">OK</button>` : ''}<button onclick="window.deleteComment('${c.id}')" class="bg-rose-600 text-white text-[9px] px-2 py-1 rounded font-black">X</button></div></div>`).join('');
-        }
+        window.updateTicker = function() {}
         window.approveComment = async function(id) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id), { approved: true }); }
         window.deleteComment = async function(id) { if(confirm("Del?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id)); }
 
@@ -303,9 +308,26 @@
             await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'soldPlayers', docId));
         }
 
-        window.setupAdminButtons = function() {
-            document.getElementById("adminFab").onclick = window.openAccessModal;
-            document.getElementById("logoutFab").onclick = window.logoutAdmin;
+        function setupListeners() {
+            if (!user) return;
+            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'purseData', 'global'), (snap) => {
+                purses = snap.data() || {};
+                teams.forEach(t => { if(purses[t] === undefined) purses[t] = INITIAL_PURSE; });
+                window.renderBoard();
+            });
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'soldPlayers'), (snap) => {
+                soldPlayers = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                window.renderBoard();
+            });
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fanComments'), (snap) => {
+                fanComments = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                window.renderApprovedComments();
+                window.renderAdminComments();
+            });
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'votes'), (snap) => {
+                votesData = {}; snap.docs.forEach(d => { votesData[d.id] = d.data(); });
+                window.renderVoteResults();
+            });
         }
 
         async function init() {
@@ -324,36 +346,9 @@
             } catch (err) { console.error("Firebase Init Error:", err); }
         }
 
-        function setupListeners() {
-            if (!user) return;
-            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'purseData', 'global'), (snap) => {
-                purses = snap.data() || {};
-                teams.forEach(t => { if(purses[t] === undefined) purses[t] = INITIAL_PURSE; });
-                window.renderBoard();
-            });
-
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'soldPlayers'), (snap) => {
-                soldPlayers = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                window.renderBoard();
-            });
-
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fanComments'), (snap) => {
-                fanComments = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                window.renderApprovedComments();
-                window.renderAdminComments();
-            });
-
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'votes'), (snap) => {
-                votesData = {};
-                snap.docs.forEach(d => { votesData[d.id] = d.data(); });
-                window.renderVoteResults();
-            });
-        }
-
         async function startInit() {
             window.populateTeamLists(); 
             await init();
-            window.setupAdminButtons();
         }
 
         window.onload = startInit;
@@ -387,11 +382,11 @@
     <!-- OVERLAYS -->
     <div id="accessOverlay">
         <div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-xs shadow-2xl border-4 border-slate-50">
-            <h3 class="text-xl font-black text-slate-900 mb-2 uppercase">Admin Hub</h3>
+            <h3 class="text-xl font-black text-slate-900 mb-2 uppercase">Admin Entry</h3>
             <input type="password" id="accessInput" placeholder="••••••" class="w-full text-center text-4xl p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 mb-8 font-black outline-none">
             <div class="flex gap-3">
                 <button onclick="document.getElementById('accessOverlay').style.display='none'" class="flex-1 p-3 rounded-xl bg-slate-100 text-slate-600 font-bold uppercase text-xs">Back</button>
-                <button onclick="window.verifyAccessAndShow()" class="flex-1 p-3 rounded-xl bg-blue-600 text-white font-black uppercase text-xs">Login</button>
+                <button onclick="window.verifyAccessAndShow()" class="flex-1 p-3 rounded-xl bg-blue-600 text-white font-black uppercase text-xs">Unlock</button>
             </div>
         </div>
     </div>
@@ -463,10 +458,6 @@
             </div>
         </div>
     </div>
-
-    <!-- ADMIN STATIC BUTTON -->
-    <div id="logoutFab" style="display:none;" onclick="window.logoutAdmin()">LOGOUT</div>
-    <div id="adminFab" onclick="window.openAccessModal()">ADMIN</div>
 
     <!-- MAIN PAGE CONTENT -->
     <div class="max-w-7xl mx-auto">
@@ -552,7 +543,7 @@
             </div>
         </div>
 
-        <!-- FAN SAY -->
+        <!-- FAN SAY (AT THE BOTTOM) -->
         <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-10 shadow-xl max-w-5xl mx-auto relative">
             <div class="absolute -top-3 left-6 bg-amber-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest">What's Fan Say?</div>
             <div class="flex items-center gap-8 pt-4">
@@ -576,10 +567,53 @@
         </div>
 
         <div id="adminModerationSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-amber-500 mb-10 shadow-2xl max-w-2xl mx-auto relative">
-            <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto mt-4"></div>
+            <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto"></div>
         </div>
 
         <div class="footer-middle">PBBL 2.0 @2026 all rights reserved</div>
     </div>
 </body>
 </html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PBBL 2.0 - ADMIN TERMINAL</title>
+    <!-- Firebase Modular SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBOrWErmXEnAyvxKQqCf4nZvnBcl0nRwas",
+            authDomain: "purulia-big-bash-auction.firebaseapp.com",
+            projectId: "purulia-big-bash-auction",
+            storageBucket: "purulia-big-bash-auction.firebasestorage.app",
+            messagingSenderId: "593663651549",
+            appId: "1:593663651549:web:2422be62f0d83d56613534"
+        };
+
+        const INITIAL_PURSE = 35000;
+        const MAX_PLAYERS = 15;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'pbb-offline-admin-final';
+
+        // --- GLOBAL DATA & CONSTANTS ---
+        const teams = ["KRISHNAPUR", "ASTIK 11","AYUSHMAN XI","MAHAKAL XI LAULARA","BARABAZAR RED DRAGONS","JOY SHIB SHAMBHU","BABAI XI ADRA","AGGRESSIVE PARBELIA","UTTAM XI PURULIA","MAHADEV WARRIORS","PUNCHA PIRATES","HURA PANTHERS","SHRIHAN XI","MANBHUM WARRIORS","MANBAZAR SUPER KINGS","AAROHI XI"];
+
+        const voteCategories = [
+            { id: "winner", label: "Who will win PBBL-2.0?", type: "team" },
+            { id: "pot", label: "Player of the Tournament", type: "player" },
+            { id: "batsman", label: "Best Batsman", type: "player" },
+            { id: "bowler", label: "Best Bowler", type: "player" }
+        ];
+
+        const players = [
+            /* ICON PLAYERS */
+            {sr:1,name:"ARJUN GORAIN",cat:"ICON"},{sr:4,name:"TRIDIP KARMAKAR",cat:"ICON"},{sr:7,name:"AFJAL ANSARY",cat:"ICON"},{sr:10,name:"NIMAI MAHATHA",cat:"ICON"},{sr:48,name:"RAJESH CHATTERJEE (RAJU)",cat:"ICON"},{sr:51,name:"SUBHADIP CHATTERJEE",cat:"ICON"},{sr:65,name:"MOHIT MOHTA",cat:"ICON"},{sr:91,name:"PORAN BAURI",cat:"ICON"},{sr:139,name:"SATYASADHAN RAJAK (INDRA)",cat:"ICON"},{sr:151,name:"PRAKASH PRASAD",cat:"ICON"},{sr:162,name:"MD IRFAN",cat:"ICON"},{sr:163,name:"SUMIT KARMAKAR",cat:"ICON"},{sr:189,name:"SANTOSH RAM",cat:"ICON"},{sr:205,name:"BIJOY SAHANI",cat:"ICON"},{sr:233,name:"BIKASH SHARMA (CHOTIYA)",cat:"ICON"},{sr:259,name:"INDRANIL SINGHA DEO (MANA)",cat:"ICON"},{sr:261,name:"PRAVIN SINGH",cat:"ICON"},{sr:290,name:"ASHRAFUL ANSARY",cat:"ICON"},
+            /* U23 PLAYERS */
+            {sr:15,name:"MD AJAZ",cat:"U23"},{sr:18,name:"SOURAV (SANTY)",cat:"U23"},{sr:21,name:"BITTU PANDEY",cat:"U23"},{sr:27,name:"SEKH ABU SUFYAN",cat:"U23"},{sr:32,name:"ANURAG TRIPATHY (BHATI)",cat:"U23"},{sr:34,name:"MD TOUHID ALAM",cat:"U23"},{sr:37,name:"DHIREN CHATTERJEE (DHIRU)",cat:"U23"},{sr:38,name:"SUSANTA KUMBHAKAR",cat:"U23"},{sr:41,name:"ABHIJIT MAITY",cat:"U23"},{sr:42,name:"AYAN GHOSH",cat:"U23"},{sr:43,name:"VISHAL RAj",cat:"U23"},{sr:46,name:"TAPAJOTI BAURI (TUFAN)",cat:"U23"},{sr:49,name:"DEEP GOSWAMI (DEB)",cat:"U23"},{sr:53,name:"ADARSHA GANGULI",cat:"U23"},{sr:62,name:"HARADHAN BAURI",cat:"U23"},{sr:63,name:"MD ARBAZ (BABA)",cat:"U23"},{sr:74,name:"PRALAY SINGHA DEO (DHONA)",cat:"U23"},{sr:79,name:"KRISH RAY",cat:"U23"},{sr:81,name:"PARTHA MAHATO",cat:"U23"},{sr:83,name:"RONIK CHATTERJEE",cat:"U23"},{sr:84,name:"AKASH KUIRI",cat:"U23"},{sr:92,name:"SUVADIP MAJEE (SUBHA)",cat:"U23"},{sr:93,name:"RAJA BHUINA",cat:"U23"},{sr:101,name:"AMRIT CHATTERJEE",cat:"U23"},{sr:103,name:"RATAN BAURI",cat:"U23"},{sr:108,name:"SIBAM SANTIKARY",cat:"U23"},{sr:115,name:"WARISH AHMED",cat:"U23"},{sr:123,name:"SUDIP MAJEE",cat:"U23"},{sr:125,name:"DILKHus ANSARI",cat:"U23"},{sr:127,name:"ARKA MUKHERJEE",cat:"U23"},{sr:128,name:"DILKHUSH RAJAK",cat:"U23"},{sr:130,name:"CHANDRANSHU MAHATO",cat:"U23"},{sr:132,name:"INDRAJIT MAHATO (PAPAI)",cat:"U23"},{sr:133,name:"DWIPAN BANERJEE",cat:"U23"},{sr:134,name:"BHAGBAT PAUL",cat:"U23"},{sr:135,name:"ROHAN RAO",cat:"U23"},{sr:137,name:"ROKI RAJAK",cat:"U23"},{sr:138,name:"RUDRA MUKHERJEE (LABUSEN)",cat:"U23"},{sr:141,name:"PINTU RAJAK",cat:"U23"},{sr:147,name:"SUJAY KARMAKAR",cat:"U23"},{sr:149,name:"RAHUL GOSWAMI",cat:"U23"},{sr:150,name:"SERAFAT ANSARY",cat:"U23"},{sr:153,name:"PRASHANT KUMAR (ANUPAM)",cat:"U23"},{sr:156,name:"MAHABIR SHUKLA (HARDIK)",cat:"U23"},{sr:160,name:"MOHAMMED THOHEED (MUNNA)",cat:"U23"},{sr:168,name:"PANKAJ MAHATO",cat:"U23"},{sr:169,name:"SWAPAN MAHATO (SAYAN)",cat:"U23"},{sr:175,name:"SHUBHAM PODDAR",cat:"U23"},{sr:177,name:"DINESH KARMAKAR",cat:"U23"},{sr:178,name:"SABBIR ALam",cat:"U23"},{sr:183,name:"BABU SWARNKAR (KHEDU)",cat:"U23"},{sr:194,name:"AKASH KUMAR DAS",cat:"U23"},{sr:195,name:"BISHAL DUBEY",cat:"U23"},{sr:197,name:"DEBASHIS MAjHI",cat:"U23"},{sr:198,name:"SHUBHAJIT SEN",cat:"U23"},{sr:207,name:"SOURAV GORAIN",cat:"U23"},{sr:209,name:"MUKESH MAJEE",cat:"U23"},{sr:210,name:"SUMIT KUMAR",cat:"U23"},{sr:214,name:"ASHUTOSH KUMAR SINGH",cat:"U23"},{sr:222,name:"GOURAB KAR",cat:"U23"},{sr:224,name:"BISWAJIT ORANG",cat:"U23"},{sr:236,name:"SOUMIK GHOSH",cat:"U23"},{sr:238,name:"GOURAV PANDEY",cat:"U23"},{sr:241,name:"SK RIYAZ",cat:"U23"},{sr:242,name:"DEEP MUKHERJEE",cat:"U23"},{sr:244,name:"ROUNAK PANDEY",cat:"U23"},{sr:251,name:"RAHUL GANGULI",cat:"U23"},{sr:253,name:"FARHAN ANSARY",cat:"U23"},{sr:264,name:"KUNDAN DUBEY",cat:"U23"},{sr:269,name:"TAPASH PAUL",cat:"U23"},{sr:272,name:"SANDIPAN BANERJEE",cat:"U23"},{sr:274,name:"SANJOY SEN",cat:"U23"},{sr:280,name:"AVIJIT ROY",cat:"U23"},{sr:284,name:"KOUSHIK MAHATO",cat:"U23"},{sr:288,name:"ANIRBAN KUNDU",cat:"U23"},{sr:294,name:"PREM BARAL",cat:"U23"},{sr:300,name:"TAMAL CHAKRABORTY",cat:"U23"},{sr:309,name:"SAYAN SENAPATI",cat:"U23"},{sr:313,name:"SUBHA SHILL",cat:"U23"},{sr:314,name:"BIKRAM MAHATO",cat:"U23"},{sr:315,name:"AYUSH AGARWAL",cat:"U23"},{sr:320,name:"GOPAL DEY",cat:"U23"},
+            /* ABOVE 40 PLAYERS */
+            {sr:12,name:"PRASANTA KARMAKAR",cat:"ABOVE 40"},{sr:20,name:"AJITESH GANGOPADHYAY",cat:"ABOVE 40"},{sr:31,name:"MANAS CHAKRABORTY",cat:"ABOVE 40"},{sr:36,name:"GOBINDA BAURI",cat:"ABOVE 40"},{sr:39,name:"MD ANIS",cat:"ABOVE 40"},{sr:47,name:"CHAITANYA DEV BOURI",cat:"ABOVE 40"},{sr:57,name:"TARUN KUMAR CHOUDHURY",cat:"ABOVE 40"},{sr:69,name:"SOURAV DEY",cat:"ABOVE 40"},{sr:78,name:"SANJU DHABALBABU",cat:"ABOVE 40"},{sr:90,name:"PRESENJIT GOSWAMI",cat:"ABOVE 40"},{sr:100,name:"DEBDAT GANGULY (PAPPU)",cat:"ABOVE 40"},{sr:124,name:"KAJAL MAHATO",cat:"ABOVE 40"},{sr:145,name:"SRIKANTA MAHATO",cat:"ABOVE 40"},{sr:148,name:"AMAR JAISWAL (LALLA)",cat:"ABOVE 40"},{sr:155,name:"SANTANU BANERJEE",cat:"ABOVE 40"},{sr:172,name:"AMZAD KHAN",cat:"ABOVE 40"},{sr:181,name:"BISWAJIT DEY",cat:"ABOVE 40"},{sr:187,name:"MUKENDAR SINGH",cat:"ABOVE 40"},{sr:270,name:"SK AMANUL",cat:"ABOVE 40"},{sr:271,name:"SAjID SAHA",cat:"ABOVE 40"},{sr:296,name:"BAPI RAjAK",cat:"ABOVE 40"},{sr:318,name:"MILAN MANDAL",cat:"ABOVE 40"},{sr:322,name:"BIKASH KARMAKAR",cat:"ABOVE 40"},
+            /* NORMAL CATEGORY */
+            {sr:2,name:"KAMAL SHAW",cat:"NORMAL"},{sr:3,name:"SOURAV MAHATO",cat:"NORMAL"},{sr:5,name:"BIPUL SINGH SARDAR",cat:"NORMAL"},{sr:6,name:"SARFARAJ SEIKH",cat:"NORMAL"},{sr:8,name:"RAHUL CHANDRA MAHATO",cat:"NORMAL"},{sr:9,name:"SANJOY MAHATO",cat:"NORMAL"},{sr:11,name:"PRASENJIT BANERJEE",cat:"NORMAL"},{sr:13,name:"SAMBHU BAURI",cat:"NORMAL"},{sr:14,name:"TAPAS DEB (MITHUN)",cat:"NORMAL"},{sr:16,name:"ARUP KUMAR SENAPATI",cat:"NORMAL"},{sr:17,name:"MASUM ANSARI",cat:"NORMAL"},{sr:19,name:"GANESH SUKLA",cat:"NORMAL"},{sr:22,name:"BIKASH MAHATO",cat:"NORMAL"},{sr:23,name:"SOURAB KARMAKAR (BALI)",cat:"NORMAL"},{sr:24,name:"BISHNUPADA DUTTA",cat:"NORMAL"},{sr:25,name:"SANU PARAMANIK",cat:"NORMAL"},{sr:26,name:"DEBASIS BANERJEE",cat:"NORMAL"},{sr:28,name:"NAYAN SARAK",cat:"NORMAL"},{sr:29,name:"UTTAM TUDU",cat:"NORMAL"},{sr:30,name:"SUBHAM RAY",cat:"NORMAL"},{sr:33,name:"KOUSHIK MANDAL",cat:"NORMAL"},{sr:35,name:"RANJIT GOPE (JHALI)",cat:"NORMAL"},{sr:40,name:"RAJIB RAKSHIT (RAJA)",cat:"NORMAL"},{sr:44,name:"SWARUP GOSWAMI",cat:"NORMAL"},{sr:45,name:"PALLAB MAHATO",cat:"NORMAL"},{sr:50,name:"RAHUL ROY (HITMAN)",cat:"NORMAL"},{sr:52,name:"RON CHAKRABORTY",cat:"NORMAL"},{sr:54,name:"MAHARAM ANSARI",cat:"NORMAL"},{sr:55,name:"SOMNATH MUKHERJEE",cat:"NORMAL"},{sr:56,name:"JHULAN ROY",cat:"NORMAL"},{sr:58,name:"PINTU KAIBARTA",cat:"NORMAL"},{sr:59,name:"SACHIN BAURI",cat:"NORMAL"},{sr:60,name:"SATYAJIT MAHATO",cat:"NORMAL"},{sr:61,name:"SURAJ BANERJEE (MONAI)",cat:"NORMAL"},{sr:64,name:"SOUMYADIPTA CHATTERJEE",cat:"NORMAL"},{sr:66,name:"SAIKAT ROY",cat:"NORMAL"},{sr:67,name:"GOURAV MUKHERJEE",cat:"NORMAL"},{sr:68,name:"SARNENDU MAHATO",cat:"NORMAL"},{sr:70,name:"BISWANATH SEN (SONU)",cat:"NORMAL"},{sr:71,name:"AVIJIT KARMAKAR",cat:"NORMAL"},{sr:72,name:"NIZAMUDDIN ANSARI (GAJU)",cat:"NORMAL"},{sr:73,name:"AMIYA MAHATO",cat:"NORMAL"},{sr:75,name:"SOMNATH GORAI",cat:"NORMAL"},{sr:76,name:"BISWAJIT ROY",cat:"NORMAL"},{sr:77,name:"PROBIR CHAND",cat:"NORMAL"},{sr:80,name:"UJJWAL MUKHERJEE",cat:"NORMAL"},{sr:82,name:"AMRIT DHIBAR",cat:"NORMAL"},{sr:85,name:"RUPESH SINGH (RUPA)",cat:"NORMAL"},{sr:86,name:"SURAJ RAJAK",cat:"NORMAL"},{sr:87,name:"NITAI MAHATO",cat:"NORMAL"},{sr:88,name:"PARTHA SARATHI MAHATO",cat:"NORMAL"},{sr:89,name:"BALARAM BAURI",cat:"NORMAL"},{sr:94,name:"AMIT KHEDIA (MICKEY)",cat:"NORMAL"},{sr:95,name:"BHASKAR BAURI",cat:"NORMAL"},{sr:96,name:"BIMAL MAHATO",cat:"NORMAL"},{sr:97,name:"SOURAV LOHAR",cat:"NORMAL"},{sr:98,name:"SUBHAJIT CHATTERJEE",cat:"NORMAL"},{sr:99,name:"TAPAS MAHATO",cat:"NORMAL"},{sr:102,name:"ASWINI BOURI",cat:"NORMAL"},{sr:104,name:"AJAY MONDAL",cat:"NORMAL"},{sr:105,name:"ACHINTA BAURI (ABD)",cat:"NORMAL"},{sr:106,name:"RANA ADHIKARY",cat:"NORMAL"},{sr:107,name:"BIPLOB ROY (AKASH)",cat:"NORMAL"},{sr:109,name:"PRADEEP MAHATO",cat:"NORMAL"},{sr:110,name:"RATIKANTA BANERJEE",cat:"NORMAL"},{sr:111,name:"SOUMYADEEP PAUL (TATAI)",cat:"NORMAL"},{sr:112,name:"RATAN KUMAR MAHATO",cat:"NORMAL"},{sr:113,name:"DHANANJAY BAURI (JAGAT)",cat:"NORMAL"},{sr:114,name:"PRATIK KARMAKAR (DABLA)",cat:"NORMAL"},{sr:116,name:"RAJU MANDAL",cat:"NORMAL"},{sr:117,name:"DEBASIS DAN",cat:"NORMAL"},{sr:118,name:"SUBIR CHOWDHURY",cat:"NORMAL"},{sr:119,name:"BIKASH BAURI",cat:"NORMAL"},{sr:120,name:"SARBOJIT HAZRA (BUNTY)",cat:"NORMAL"},{sr:121,name:"BISWAJIT DUTTA",cat:"NORMAL"},{sr:122,name:"BIJAY GORAIN",cat:"NORMAL"},{sr:126,name:"MUBARAK ANSARY",cat:"NORMAL"},{sr:129,name:"BAPI RAJAK",cat:"NORMAL"},{sr:131,name:"SOMNATH KARMAKAR (SOMU)",cat:"NORMAL"},{sr:136,name:"GURUPADA NANDI (BUBAI)",cat:"NORMAL"},{sr:140,name:"AKASH ROY",cat:"NORMAL"},{sr:142,name:"BISHAL SAW (BITTU)",cat:"NORMAL"},{sr:143,name:"ABDUL ANSARY",cat:"NORMAL"},{sr:144,name:"RAJEN SINGH",cat:"NORMAL"},{sr:146,name:"SOMNATH RAJAK",cat:"NORMAL"},{sr:152,name:"SOURAV MUKHERJEE",cat:"NORMAL"},{sr:154,name:"AJIT BAURI",cat:"NORMAL"},{sr:157,name:"SIDDHARTH SANKAR MAHANTI",cat:"NORMAL"},{sr:158,name:"RAHUL DUBEY",cat:"NORMAL"},{sr:159,name:"JAGANNATH DUTTA",cat:"NORMAL"},{sr:161,name:"MANOTOSH RAjWAR",cat:"NORMAL"},{sr:164,name:"GAUTAM KUSHWAHA",cat:"NORMAL"},{sr:165,name:"BABAN MAHATO",cat:"NORMAL"},{sr:166,name:"PURNA CH BAGDI",cat:"NORMAL"},{sr:167,name:"PALLAB BHATTACHARYYA",cat:"NORMAL"},{sr:170,name:"JITEN GARAI",cat:"NORMAL"},{sr:171,name:"VISHAL SAH",cat:"NORMAL"},{sr:173,name:"SUBRATA PARAMANIK",cat:"NORMAL"},{sr:174,name:"SAIF ALI ANSARI",cat:"NORMAL"},{sr:176,name:"RAMJAN MAHAMMAD",cat:"NORMAL"},{sr:179,name:"MALOY PARAMANIK",cat:"NORMAL"},{sr:180,name:"RIJU RAJAK",cat:"NORMAL"},{sr:182,name:"CHIRANJIT RAJAK",cat:"NORMAL"},{sr:184,name:"SK AKBAR",cat:"NORMAL"},{sr:185,name:"DIPAK CHATTERJEE",cat:"NORMAL"},{sr:186,name:"ARUP MUKHERJEE",cat:"NORMAL"},{sr:188,name:"DEBAPRIYA MUKHERJEE (DODON)",cat:"NORMAL"},{sr:190,name:"ATANU MAHATO",cat:"NORMAL"},{sr:191,name:"TAPESH CHANDRA PAUL",cat:"NORMAL"},{sr:192,name:"SACHIN GOPE",cat:"NORMAL"},{sr:193,name:"RIYAZ SIDDIKI",cat:"NORMAL"},{sr:196,name:"PRABAL HAZRA",cat:"NORMAL"},{sr:199,name:"PABAN SAMAL",cat:"NORMAL"},{sr:200,name:"SIDDHARTHA CHAKRABORTY",cat:"NORMAL"},{sr:201,name:"MOHIT PRASAD GOPE",cat:"NORMAL"},{sr:202,name:"RAJKISHOR MAHATO",cat:"NORMAL"},{sr:203,name:"SUMIT DAS (RIJU)",cat:"NORMAL"},{sr:204,name:"AKALANKA MAHATO",cat:"NORMAL"},{sr:206,name:"SULTAN AKHTAR (TIPU)",cat:"NORMAL"},{sr:208,name:"DEVENDRA CHAKRABORTY",cat:"NORMAL"},{sr:211,name:"BIKRAM GORAI",cat:"NORMAL"},{sr:212,name:"BIJOY ROY",cat:"NORMAL"},{sr:213,name:"JITEN BAURI (MONA)",cat:"NORMAL"},{sr:215,name:"BAPI MAHATO",cat:"NORMAL"},{sr:216,name:"BADAL TIWARI",cat:"NORMAL"},{sr:217,name:"RITESH SINGHA DEB",cat:"NORMAL"},{sr:218,name:"GANESH MODAK",cat:"NORMAL"},{sr:219,name:"KARTICK MAHATO",cat:"NORMAL"},{sr:220,name:"MANAS HARI",cat:"NORMAL"},{sr:221,name:"AVIJIT ROY",cat:"NORMAL"},{sr:223,name:"MD IRSAD ANSARI",cat:"NORMAL"},{sr:225,name:"SUBHASIS BANERJEE",cat:"NORMAL"},{sr:226,name:"BRAJA KISHORE MAHATO (BEJO)",cat:"NORMAL"},{sr:227,name:"RABEN SINGH SARDAR",cat:"NORMAL"},{sr:228,name:"TUSHAR KANTI MAHATO",cat:"NORMAL"},{sr:229,name:"WASIM KHAN",cat:"NORMAL"},{sr:230,name:"RAKESH ROY",cat:"NORMAL"},{sr:231,name:"SUBRATA MAHATO",cat:"NORMAL"},{sr:232,name:"BIDYUT MAJEE",cat:"NORMAL"},{sr:234,name:"SK AMJED ALI",cat:"NORMAL"},{sr:235,name:"BIPUL MAIKAP",cat:"NORMAL"},{sr:237,name:"SAMIUL ANSARY (CHOTU)",cat:"NORMAL"},{sr:239,name:"BIKASH SHARMA",cat:"NORMAL"},{sr:240,name:"AMIT SINGHA",cat:"NORMAL"},{sr:243,name:"RIVU DAS",cat:"NORMAL"},{sr:245,name:"DIBYENDU MAHATO",cat:"NORMAL"},{sr:246,name:"RAHUL RAJAK (BUMBA)",cat:"NORMAL"},{sr:247,name:"PRAKASH HALWAI",cat:"NORMAL"},{sr:248,name:"jayanta bauri",cat:"NORMAL"},{sr:249,name:"SACHIN RAJAK",cat:"NORMAL"},{sr:250,name:"PARIMAL MAjHI",cat:"NORMAL"},{sr:252,name:"KIRAN MUKHERJEE (HIRAN)",cat:"NORMAL"},{sr:254,name:"ARUP BOURI",cat:"NORMAL"},{sr:255,name:"MILAN BAURI",cat:"NORMAL"},{sr:256,name:"RAHUL BARAL",cat:"NORMAL"},{sr:257,name:"BISWAjIT GOPE",cat:"NORMAL"},{sr:258,name:"SK SATTAR",cat:"NORMAL"},{sr:260,name:"MAHENDRA BAURI",cat:"NORMAL"},{sr:262,name:"SHYAMAL BARAN SAHIS",cat:"NORMAL"},{sr:263,name:"DIPOK GORAI",cat:"NORMAL"},{sr:265,name:"MANAJ BAURI",cat:"NORMAL"},{sr:266,name:"DEBABRATA TUDU",cat:"NORMAL"},{sr:267,name:"SK GOLAM AZHAR",cat:"NORMAL"},{sr:268,name:"SHYAMAL MANDAL",cat:"NORMAL"},{sr:273,name:"MD ARMAN",cat:"NORMAL"},{sr:275,name:"BIBEK BAURI",cat:"NORMAL"},{sr:276,name:"MD ASLAM",cat:"NORMAL"},{sr:277,name:"AKASH RAKSHIT",cat:"NORMAL"},{sr:278,name:"JHULAN MODAK",cat:"NORMAL"},{sr:279,name:"ARNAB KUNDU",cat:"NORMAL"},{sr:281,name:"CHAND
