@@ -93,7 +93,6 @@
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'soldPlayers'), (snap) => {
                 soldPlayers = snap.docs.map(d => ({id: d.id, ...d.data()}));
                 window.renderBoard();
-                window.updateTicker();
             });
 
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fanComments'), (snap) => {
@@ -233,7 +232,7 @@
                 document.getElementById("accessOverlay").style.display = "none";
                 document.getElementById("accessInput").value = "";
                 document.getElementById("adminFab").style.opacity = "0.5"; 
-            } else { alert("WRONG PASSWORD!"); }
+            } else { alert("WRONG ACCESS PASSWORD!"); }
         }
 
         window.startSaleProcess = function(e) {
@@ -283,18 +282,12 @@
         window.approveComment = async function(id) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id), { approved: true }); }
         window.deleteComment = async function(id) { if(confirm("Del?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id)); }
 
-        window.updateTicker = function() {
-            const sorted = [...soldPlayers].sort((a, b) => b.timestamp - a.timestamp);
-            if (!sorted.length) return;
-            const p = sorted[0];
-        }
-
         window.renderBoard = function() {
             const sel = document.getElementById("teamTrackerSelect")?.value;
             if (!sel) return document.getElementById("adminBoard").innerHTML = "";
             const sq = soldPlayers.filter(p => p.bidder === sel).sort((a, b) => a.timestamp - b.timestamp);
             const pv = purses[sel] !== undefined ? purses[sel] : INITIAL_PURSE;
-            document.getElementById("adminBoard").innerHTML = `<div class="card p-6 border border-slate-200 rounded-[2.5rem] bg-white flex flex-col shadow-xl max-w-4xl mx-auto w-full transition-all duration-500"><div class="border-b border-slate-100 pb-4 mb-4"><div class="font-black text-slate-900 text-2xl tracking-tighter uppercase">${sel}</div><div class="grid grid-cols-2 gap-4"><div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col"><span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest">Purse</span><span class="text-emerald-700 font-mono font-black text-2xl">₹${pv}</span></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col"><span class="text-[10px] text-rose-600 font-black uppercase tracking-widest">Slots Left</span><span class="text-rose-700 font-black text-2xl">${MAX_PLAYERS - sq.length}</span></div></div></div><div class="space-y-2"><div class="grid grid-cols-1 gap-2">${sq.map((p, i) => `<div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100"><span class="text-sm text-slate-800 font-black">#${i+1} ${getEmoji(p.cat)} ${p.name}</span><div class="flex items-center gap-3"><span class="text-slate-900 font-black text-sm">₹${p.price}</span><button onclick="window.startRecallProcess('${p.id}', '${sel}', ${p.price}, ${p.sr})" class="bg-rose-500 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase">RECALL</button></div></div>`).join('')}</div></div></div>`;
+            document.getElementById("adminBoard").innerHTML = `<div class="card p-6 border border-slate-200 rounded-[2.5rem] bg-white flex flex-col shadow-xl max-w-4xl mx-auto w-full transition-all duration-500"><div class="border-b border-slate-100 pb-4 mb-4"><div class="font-black text-slate-900 text-2xl tracking-tighter uppercase">${sel}</div><div class="grid grid-cols-2 gap-4"><div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col"><span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest">Remaining Purse</span><span class="text-emerald-700 font-mono font-black text-2xl">₹${pv}</span></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col"><span class="text-[10px] text-rose-600 font-black uppercase tracking-widest">Slots Left</span><span class="text-rose-700 font-black text-2xl">${MAX_PLAYERS - sq.length}</span></div></div></div><div class="space-y-2"><div class="grid grid-cols-1 gap-2">${sq.map((p, i) => `<div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100"><span class="text-sm text-slate-800 font-black">#${i+1} ${getEmoji(p.cat)} ${p.name}</span><div class="flex items-center gap-3"><span class="text-slate-900 font-black text-sm">₹${p.price}</span><button onclick="window.startRecallProcess('${p.id}', '${sel}', ${p.price}, ${p.sr})" class="bg-rose-500 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase">RECALL</button></div></div>`).join('')}</div></div></div>`;
         }
 
         window.onload = init;
@@ -309,47 +302,50 @@
         .header-text { color: #facc15 !important; font-weight: 900 !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
         
         /* TOP FIXED BUTTONS */
-        #adminFab { position: fixed; top: 15px; right: 15px; padding: 6px 15px; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 6000; background: #1e293b; border: 1px solid rgba(255,255,255,0.1); text-transform: uppercase; }
-        
+        #voteFab, #adminFab { position: fixed; top: 15px; padding: 8px 18px; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; z-index: 6000; text-transform: uppercase; letter-spacing: 1px; border: 1px solid rgba(255,255,255,0.1); }
+        #voteFab { left: 15px; background: #2563eb; }
+        #adminFab { right: 15px; background: #1e293b; }
+        #voteFab:hover, #adminFab:hover { transform: scale(1.05); filter: brightness(1.1); }
+
         #accessOverlay, #pinOverlay, #fanSayOverlay, #voteOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); display: none; justify-content: center; align-items: center; z-index: 9000; backdrop-filter: blur(10px); }
         
         .day-1-header { background: #1e3a8a !important; } .day-2-header { background: #92400e !important; } .day-3-header { background: #064e3b !important; } .day-4-header { background: #881337 !important; } .day-5-header { background: #581c87 !important; }
         .day-1-row { background-color: #eff6ff; } .day-2-row { background-color: #fffbeb; } .day-3-row { background-color: #ecfdf5; } .day-4-row { background-color: #fff1f2; } .day-5-row { background-color: #faf5ff; }
         
         .footer-middle { font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 2.5px; text-align: center; padding: 40px 0; border-top: 1px solid #e2e8f0; margin-top: 50px; }
-        .vote-container { transition: all 0.3s; border: 2px solid transparent; }
+        .vote-container { transition: all 0.3s; border: 1px solid #e2e8f0; }
     </style>
 </head>
-<body class="p-4 pt-16 md:p-8">
+<body class="p-4 pt-16 md:p-8 md:pt-16">
 
     <!-- OVERLAYS -->
     <div id="accessOverlay">
         <div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-xs shadow-2xl border-4 border-slate-50">
-            <h3 class="text-xl font-black text-slate-900 mb-2 uppercase">Admin Access</h3>
+            <h3 class="text-xl font-black text-slate-900 mb-2 uppercase">Admin Entry</h3>
             <input type="password" id="accessInput" placeholder="••••••" class="w-full text-center text-4xl p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 mb-8 font-black outline-none">
             <div class="flex gap-3">
                 <button onclick="document.getElementById('accessOverlay').style.display='none'" class="flex-1 p-3 rounded-xl bg-slate-100 text-slate-600 font-bold uppercase text-xs">Back</button>
-                <button onclick="window.verifyAccessAndShow()" class="flex-1 p-3 rounded-xl bg-blue-600 text-white font-black uppercase text-xs">Login</button>
+                <button onclick="window.verifyAccessAndShow()" class="flex-1 p-3 rounded-xl bg-blue-600 text-white font-black uppercase text-xs">Unlock</button>
             </div>
         </div>
     </div>
 
     <div id="pinOverlay">
-        <div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-xs shadow-2xl">
+        <div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-xs shadow-2xl border-4 border-slate-50">
             <h3 class="text-xl font-black text-slate-900 mb-6 uppercase">Confirm PIN</h3>
             <input type="password" id="pinInput" maxlength="4" placeholder="••••" class="w-full text-center text-5xl p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 mb-8 font-black outline-none">
-            <button onclick="window.verifyAndExecute()" class="w-full p-4 rounded-xl bg-emerald-600 text-white font-black uppercase text-xs">Finalize</button>
+            <button onclick="window.verifyAndExecute()" class="w-full p-4 rounded-xl bg-emerald-600 text-white font-black uppercase text-xs shadow-lg">Finalize Sale</button>
         </div>
     </div>
 
     <div id="fanSayOverlay">
         <div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-md shadow-2xl border-4 border-slate-50">
             <h3 class="text-2xl font-black text-slate-900 mb-2 uppercase italic tracking-tighter">Fan Talk</h3>
-            <input type="text" id="fanSenderInput" placeholder="Name" class="w-full p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 mb-3 font-bold outline-none">
-            <textarea id="fanCommentInput" placeholder="Type your comment..." rows="3" class="w-full p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 mb-8 font-bold outline-none"></textarea>
+            <input type="text" id="fanSenderInput" placeholder="Your Name" class="w-full p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 mb-3 font-bold outline-none">
+            <textarea id="fanCommentInput" placeholder="Type player/team talks..." rows="3" class="w-full p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 mb-8 font-bold outline-none"></textarea>
             <div class="flex gap-3">
                 <button onclick="document.getElementById('fanSayOverlay').style.display='none'" class="flex-1 p-3 rounded-xl bg-slate-100 text-slate-600 font-bold uppercase text-xs">Close</button>
-                <button onclick="window.submitFanComment()" class="flex-1 p-3 rounded-xl bg-amber-600 text-white font-black uppercase text-xs shadow-lg">Submit</button>
+                <button onclick="window.submitFanComment()" class="flex-1 p-3 rounded-xl bg-amber-600 text-white font-black uppercase text-xs shadow-lg">Post Talk</button>
             </div>
         </div>
     </div>
@@ -362,35 +358,35 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div class="space-y-6">
-                    <div id="container_winner" class="vote-container bg-blue-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-blue-900 uppercase mb-3 text-center">Winner PBBL-2.0?</h4>
-                        <select id="voteWinnerSelect" onchange="window.selectVoteTeam('winner', this.value)" class="w-full p-3 rounded-xl border-none font-black text-sm shadow-sm cursor-pointer"></select>
+                    <div id="container_winner" class="vote-container bg-blue-50 p-5 rounded-3xl">
+                        <h4 class="text-xs font-black text-blue-900 uppercase mb-3 text-center tracking-widest">Winner PBBL-2.0?</h4>
+                        <select id="voteWinnerSelect" onchange="window.selectVoteTeam('winner', this.value)" class="w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm cursor-pointer transition-all"></select>
                     </div>
-                    <div id="container_pot" class="vote-container bg-emerald-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-emerald-900 uppercase mb-3 text-center">POT Winner</h4>
+                    <div id="container_pot" class="vote-container bg-emerald-50 p-5 rounded-3xl">
+                        <h4 class="text-xs font-black text-emerald-900 uppercase mb-3 text-center tracking-widest">POT Winner</h4>
                         <div class="relative">
-                            <input type="text" id="voteSearch_pot" onkeyup="window.searchVotePlayer('pot')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm">
+                            <input type="text" id="voteSearch_pot" onkeyup="window.searchVotePlayer('pot')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm">
                             <div id="voteSuggest_pot" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
                         </div>
                     </div>
-                    <div id="container_batsman" class="vote-container bg-amber-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-amber-900 uppercase mb-3 text-center">Best Batsman</h4>
+                    <div id="container_batsman" class="vote-container bg-amber-50 p-5 rounded-3xl">
+                        <h4 class="text-xs font-black text-amber-900 uppercase mb-3 text-center tracking-widest">Best Batsman</h4>
                         <div class="relative">
-                            <input type="text" id="voteSearch_batsman" onkeyup="window.searchVotePlayer('batsman')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm">
+                            <input type="text" id="voteSearch_batsman" onkeyup="window.searchVotePlayer('batsman')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm">
                             <div id="voteSuggest_batsman" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
                         </div>
                     </div>
-                    <div id="container_bowler" class="vote-container bg-rose-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-rose-900 uppercase mb-3 text-center">Best Bowler</h4>
+                    <div id="container_bowler" class="vote-container bg-rose-50 p-5 rounded-3xl">
+                        <h4 class="text-xs font-black text-rose-900 uppercase mb-3 text-center tracking-widest">Best Bowler</h4>
                         <div class="relative">
-                            <input type="text" id="voteSearch_bowler" onkeyup="window.searchVotePlayer('bowler')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm">
+                            <input type="text" id="voteSearch_bowler" onkeyup="window.searchVotePlayer('bowler')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm">
                             <div id="voteSuggest_bowler" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
                         </div>
                     </div>
                     <button onclick="window.submitAllVotes()" class="w-full p-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all uppercase tracking-widest">SUBMIT ALL VOTES</button>
                 </div>
                 <div class="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
-                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center underline decoration-slate-200">Live Result Analytics</h4>
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center underline decoration-slate-200">Live Poll Analytics</h4>
                     <div class="space-y-6">
                         <div><p class="text-[10px] font-black text-blue-600 mb-2 uppercase">Winner Prediction</p><div id="voteResult_winner"></div></div>
                         <div><p class="text-[10px] font-black text-emerald-600 mb-2 uppercase">POT Leaderboard</p><div id="voteResult_pot"></div></div>
@@ -402,7 +398,8 @@
         </div>
     </div>
 
-    <!-- ADMIN STATIC BUTTON -->
+    <!-- TOP NAVIGATION -->
+    <div id="voteFab" onclick="window.openVoteModal()">VOTE</div>
     <div id="adminFab" onclick="window.openAccessModal()">ADMIN</div>
 
     <!-- MAIN PAGE CONTENT -->
@@ -431,55 +428,22 @@
             </div>
         </div>
 
-        <div id="adminBoard" class="mb-10"></div>
+        <div id="adminBoard" class="mb-10 transition-all"></div>
 
         <!-- FAN SAY -->
         <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-10 shadow-xl max-w-5xl mx-auto relative">
             <div class="absolute -top-3 left-6 bg-amber-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest">What's Fan Say?</div>
-            <div class="flex items-center gap-8">
+            <div class="flex items-center gap-8 pt-4">
                 <div class="bg-amber-100 p-5 rounded-full text-amber-600 shadow-inner cursor-pointer hover:scale-110 transition-all flex-shrink-0" onclick="window.openFanSayModal()">💬</div>
                 <div id="fanSayDisplay" class="flex-1 space-y-4 max-h-40 overflow-y-auto pr-4"></div>
             </div>
         </div>
 
-        <!-- VOTING RESULTS SECTION -->
-        <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-10 shadow-xl max-w-5xl mx-auto relative">
-            <div class="absolute -top-3 left-6 bg-blue-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest shadow-md">Vote for your favourite Team / Player</div>
-            
-            <div class="flex justify-center mb-6 pt-4">
-                <button onclick="window.openVoteModal()" class="px-8 py-3 bg-blue-600 text-white font-black rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-xs tracking-widest uppercase border-b-4 border-blue-800">CLICK HERE TO VOTE</button>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
-                <div><h5 class="text-[10px] font-black text-blue-600 uppercase mb-3 text-center border-b pb-1">Championship Race</h5><div id="voteResult_winner"></div></div>
-                <div><h5 class="text-[10px] font-black text-emerald-600 uppercase mb-3 text-center border-b pb-1">Player of Tournament</h5><div id="voteResult_pot"></div></div>
-                <div><h5 class="text-[10px] font-black text-amber-600 uppercase mb-3 text-center border-b pb-1">Best Batsman Race</h5><div id="voteResult_batsman"></div></div>
-                <div><h5 class="text-[10px] font-black text-rose-600 uppercase mb-3 text-center border-b pb-1">Best Bowler Race</h5><div id="voteResult_bowler"></div></div>
-            </div>
-        </div>
-
-        <!-- HIDDEN SALE ENTRY -->
-        <div id="saleEntrySection" style="display:none;" class="bg-white p-8 rounded-[3rem] border-2 border-emerald-500 mb-10 shadow-2xl max-w-3xl mx-auto relative">
-            <div class="absolute -top-4 left-10 bg-emerald-600 text-white text-[10px] font-black px-6 py-2 rounded-full uppercase tracking-[0.2em] shadow-lg">New Transaction Hub</div>
-            <form id="saleForm" onsubmit="window.startSaleProcess(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-6">
-                <div class="relative"><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Sr No</label><input type="text" id="playerInput" autocomplete="off" onkeyup="window.filterPlayers()" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm outline-none border-2 border-transparent focus:border-sky-200 transition-all"><div id="playerSuggestions" class="absolute z-50 left-0 right-0 bg-white border border-slate-100 rounded-2xl max-h-48 overflow-y-auto shadow-2xl mt-1"></div></div>
-                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Price</label><input type="number" id="priceInput" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm outline-none border-2 border-transparent focus:border-sky-200 transition-all"></div>
-                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Team</label><select id="teamSelect" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm outline-none border-2 border-transparent focus:border-sky-200 transition-all"></select></div>
-                <button type="submit" class="w-full h-[52px] bg-slate-900 text-white font-black rounded-2xl text-[11px] tracking-[0.2em] shadow-xl hover:bg-black active:scale-95 transition-all">SOLD</button>
-            </form>
-        </div>
-
-        <!-- MODERATION -->
-        <div id="adminModerationSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-amber-500 mb-10 shadow-2xl max-w-2xl mx-auto relative">
-            <div class="absolute -top-3 left-6 bg-amber-600 text-white text-[8px] font-black px-4 py-1 rounded-full uppercase tracking-widest">Comment Moderation</div>
-            <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto mt-4"></div>
-        </div>
-
         <!-- FIXTURES & RULES -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-16 items-stretch">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-12 items-stretch">
             <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden flex flex-col">
                 <div class="bg-slate-900 p-5 border-b border-slate-800 flex justify-between items-center"><h2 class="text-xs font-black text-white uppercase tracking-[0.2em]">Tournaments Rules</h2></div>
-                <div class="flex-grow"><table class="table-standard w-full h-full text-[10px]"><tbody><tr><td>Playing 11 Composition</td><td>1 Above 40 🎖️, 1 U23 🧒, 1 Icon ⭐ (Mandatory)</td></tr><tr><td>Match Format</td><td>6 Overs Per Inning (Regular Rounds)</td></tr><tr><td>Substitutions</td><td>Impact Player Rule Applicable</td></tr><tr><td>Semi-Final Phase</td><td>Groups decided via Lottery</td></tr><tr><td>Finals Format</td><td>8 to 10 Overs (SF & Final)</td></tr><tr><td>Squad Cap</td><td>Max 15 Players per team</td></tr></tbody></table></div>
+                <div class="flex-grow"><table class="table-standard w-full h-full text-[10px]"><tbody><tr><td>Playing 11 Composition</td><td>1 Above 40 🎖️, 1 U23 🧒, 1 Icon ⭐ (Mandatory)</td></tr><tr><td>Match Format</td><td>6 Overs Per Inning</td></tr><tr><td>Substitutions</td><td>Impact Player Rule Applicable</td></tr><tr><td>Semi-Final Phase</td><td>Groups decided via Lottery</td></tr><tr><td>Finals Format</td><td>8 to 10 Overs (SF & Final)</td></tr><tr><td>Squad Cap</td><td>Max 15 Players per team</td></tr></tbody></table></div>
             </div>
 
             <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl flex flex-col overflow-hidden">
@@ -507,11 +471,43 @@
                     </div>
                     <table class="table-standard border rounded-2xl overflow-hidden w-full shadow-md">
                         <tr class="day-5-header"><th colspan="2" class="text-center py-2 header-text font-black uppercase tracking-widest">DAY 5 - 26/03 (THU) - GRAND FINALS</th></tr>
-                        <tr class="day-5-row"><td width="70" class="font-black">SF 1 & 2</td><td>Semifinals (Lottery)</td></tr>
+                        <tr class="day-5-row"><td width="70" class="font-black">SF 1</td><td>Semifinal 1 (Determined by Lottery)</td></tr>
+                        <tr class="day-5-row"><td width="70" class="font-black">SF 2</td><td>Semifinal 2 (Determined by Lottery)</td></tr>
                         <tr class="day-5-row text-rose-600 font-black"><td class="text-base">FINAL</td><td class="text-base uppercase italic">Winner SF1 vs Winner SF2</td></tr>
                     </table>
                 </div>
             </div>
+        </div>
+
+        <!-- VOTING RESULTS SECTION (AT THE BOTTOM) -->
+        <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-10 shadow-xl max-w-5xl mx-auto relative">
+            <div class="absolute -top-3 left-6 bg-blue-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest shadow-md">Vote for your favourite Team / Player</div>
+            <div class="flex justify-center mb-6 pt-4">
+                <button onclick="window.openVoteModal()" class="px-8 py-3 bg-blue-600 text-white font-black rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-xs tracking-widest uppercase border-b-4 border-blue-800">CLICK HERE TO VOTE</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div><h5 class="text-[10px] font-black text-blue-600 uppercase mb-3 text-center border-b pb-1">Championship Race</h5><div id="voteResult_winner"></div></div>
+                <div><h5 class="text-[10px] font-black text-emerald-600 uppercase mb-3 text-center border-b pb-1">POT Ranking</h5><div id="voteResult_pot"></div></div>
+                <div><h5 class="text-[10px] font-black text-amber-600 uppercase mb-3 text-center border-b pb-1">Best Batsman</h5><div id="voteResult_batsman"></div></div>
+                <div><h5 class="text-[10px] font-black text-rose-600 uppercase mb-3 text-center border-b pb-1">Best Bowler</h5><div id="voteResult_bowler"></div></div>
+            </div>
+        </div>
+
+        <!-- HIDDEN SALE ENTRY -->
+        <div id="saleEntrySection" style="display:none;" class="bg-white p-8 rounded-[3rem] border-2 border-emerald-500 mb-10 shadow-2xl max-w-3xl mx-auto relative">
+            <div class="absolute -top-4 left-10 bg-emerald-600 text-white text-[10px] font-black px-6 py-2 rounded-full uppercase tracking-[0.2em] shadow-lg">New Transaction Hub</div>
+            <form id="saleForm" onsubmit="window.startSaleProcess(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-6">
+                <div class="relative"><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Sr No</label><input type="text" id="playerInput" autocomplete="off" onkeyup="window.filterPlayers()" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm border-none"><div id="playerSuggestions" class="absolute z-50 left-0 right-0 bg-white border border-slate-100 rounded-2xl max-h-48 overflow-y-auto shadow-2xl"></div></div>
+                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Price</label><input type="number" id="priceInput" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm border-none"></div>
+                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Team</label><select id="teamSelect" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm border-none"></select></div>
+                <button type="submit" class="w-full h-[52px] bg-slate-900 text-white font-black rounded-2xl text-[11px] shadow-xl">SOLD</button>
+            </form>
+        </div>
+
+        <!-- MODERATION -->
+        <div id="adminModerationSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-amber-500 mb-10 shadow-2xl max-w-xl mx-auto relative">
+            <div class="absolute -top-3 left-6 bg-amber-600 text-white text-[8px] font-black px-4 py-1 rounded-full uppercase tracking-widest">Comment Moderation</div>
+            <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto mt-4"></div>
         </div>
 
         <div class="footer-middle">PBBL 2.0 @2026 all rights reserved</div>
