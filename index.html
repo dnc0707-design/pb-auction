@@ -93,6 +93,7 @@
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'soldPlayers'), (snap) => {
                 soldPlayers = snap.docs.map(d => ({id: d.id, ...d.data()}));
                 window.renderBoard();
+                window.updateTicker();
             });
 
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fanComments'), (snap) => {
@@ -118,7 +119,7 @@
                 const srStr = p.sr ? p.sr.toString() : "";
                 const srPadded = srStr.padStart(3, '0');
                 const srPlain = parseInt(srStr).toString();
-                return srStr === input || srPadded === input || srPlain === input || p.name.toLowerCase().includes(input);
+                return srStr.includes(input) || srPadded.includes(input) || srPlain.includes(input) || p.name.toLowerCase().includes(input);
             }).slice(0, 5);
 
             found.forEach(p => {
@@ -131,6 +132,10 @@
             });
         }
 
+        window.updateTicker = function() {
+            // Empty as requested
+        }
+
         window.filterPlayers = function() {
             const input = document.getElementById("playerInput").value.trim().toLowerCase();
             const list = document.getElementById("playerSuggestions");
@@ -139,7 +144,7 @@
             const matches = players.filter(p => {
                 const srStr = p.sr ? p.sr.toString() : "";
                 const srPadded = srStr.padStart(3, '0');
-                return !soldPlayers.some(s => s.sr === p.sr) && (srStr === input || srPadded === input || p.name.toLowerCase().includes(input));
+                return !soldPlayers.some(s => s.sr === p.sr) && (srStr.includes(input) || srPadded.includes(input) || p.name.toLowerCase().includes(input));
             }).slice(0, 5);
             matches.forEach(p => {
                 const div = document.createElement("div");
@@ -166,7 +171,7 @@
                 const srStr = p.sr ? p.sr.toString() : "";
                 const srPadded = srStr.padStart(3, '0');
                 const catMatch = !filter || p.cat === filter;
-                return catMatch && (srStr === input || srPadded === input || p.name.toLowerCase().includes(input));
+                return catMatch && (srStr.includes(input) || srPadded.includes(input) || p.name.toLowerCase().includes(input));
             }).slice(0, 3);
             matches.forEach(p => {
                 const div = document.createElement("div");
@@ -192,7 +197,6 @@
         window.submitAllVotes = async function() {
             const voteKeys = Object.keys(selectedVotes);
             if(!voteKeys.length) return alert("Select a category to vote!");
-            
             let casted = 0;
             for(const id of voteKeys) {
                 if(localStorage.getItem(`voted_${id}`)) continue;
@@ -204,8 +208,7 @@
                 casted++;
             }
             if(casted > 0) alert("Thank you! Votes submitted.");
-            else alert("You already voted in these categories.");
-            
+            else alert("Voted already.");
             selectedVotes = {};
             document.querySelectorAll('.vote-container').forEach(el => el.classList.remove('border-emerald-400', 'bg-emerald-50'));
             document.querySelectorAll('.vote-input').forEach(el => el.value = "");
@@ -226,6 +229,7 @@
             });
         }
 
+        // --- ACCESS & LOGOUT LOGIC ---
         window.openAccessModal = function() { document.getElementById("accessOverlay").style.display = "flex"; }
         window.verifyAccessAndShow = function() {
             if(document.getElementById("accessInput").value === "723156") {
@@ -233,8 +237,19 @@
                 document.getElementById("adminModerationSection").style.display = "block";
                 document.getElementById("accessOverlay").style.display = "none";
                 document.getElementById("accessInput").value = "";
-                document.getElementById("adminFab").style.opacity = "0.5"; 
+                // Hide Login, Show Logout
+                document.getElementById("adminFab").style.display = "none"; 
+                document.getElementById("logoutFab").style.display = "flex"; 
             } else { alert("WRONG PASSWORD!"); }
+        }
+
+        window.logoutAdmin = function() {
+            document.getElementById("saleEntrySection").style.display = "none";
+            document.getElementById("adminModerationSection").style.display = "none";
+            // Show Login, Hide Logout
+            document.getElementById("adminFab").style.display = "flex"; 
+            document.getElementById("logoutFab").style.display = "none"; 
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         window.startSaleProcess = function(e) {
@@ -292,6 +307,8 @@
             document.getElementById("adminBoard").innerHTML = `<div class="card p-6 border border-slate-200 rounded-[2.5rem] bg-white flex flex-col shadow-xl max-w-4xl mx-auto w-full transition-all duration-500"><div class="border-b border-slate-100 pb-4 mb-4"><div class="font-black text-slate-900 text-2xl tracking-tighter uppercase">${sel}</div><div class="grid grid-cols-2 gap-4"><div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col"><span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest">Purse</span><span class="text-emerald-700 font-mono font-black text-2xl">₹${pv}</span></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col"><span class="text-[10px] text-rose-600 font-black uppercase tracking-widest">Slots Left</span><span class="text-rose-700 font-black text-2xl">${MAX_PLAYERS - sq.length}</span></div></div></div><div class="space-y-2"><div class="grid grid-cols-1 gap-2">${sq.map((p, i) => `<div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100"><span class="text-sm text-slate-800 font-black">#${i+1} ${getEmoji(p.cat)} ${p.name}</span><div class="flex items-center gap-3"><span class="text-slate-900 font-black text-sm">₹${p.price}</span><button onclick="window.startRecallProcess('${p.id}', '${sel}', ${p.price}, ${p.sr})" class="bg-rose-500 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase">RECALL</button></div></div>`).join('')}</div></div></div>`;
         }
 
+        window.resetEverything = async function() { if(!confirm("WIPE DATA?")) return; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'purseData', 'global'), {}); const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'soldPlayers')); for (const d of snap.docs) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'soldPlayers', d.id)); } location.reload(); };
+
         window.onload = init;
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -303,9 +320,11 @@
         .table-standard td { padding: 0.6rem 0.5rem; font-size: 0.75rem; border-bottom: 1px solid #f1f5f9; font-weight: 700; color: #0f172a; }
         .header-text { color: #facc15 !important; font-weight: 900 !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.4); }
         
-        /* TOP FIXED BUTTON */
-        #adminFab { position: fixed; top: 15px; right: 15px; padding: 8px 18px; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 6000; background: #1e293b; border: 1px solid rgba(255,255,255,0.1); text-transform: uppercase; }
-        #adminFab:hover { transform: scale(1.05); background: #0f172a; }
+        /* TOP FIXED BUTTONS */
+        #adminFab, #logoutFab { position: fixed; top: 15px; right: 15px; padding: 8px 18px; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 6000; text-transform: uppercase; letter-spacing: 1px; border: 1px solid rgba(255,255,255,0.1); }
+        #adminFab { background: #1e293b; }
+        #logoutFab { background: #e11d48; }
+        #adminFab:hover, #logoutFab:hover { transform: scale(1.05); filter: brightness(1.1); }
 
         #accessOverlay, #pinOverlay, #fanSayOverlay, #voteOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); display: none; justify-content: center; align-items: center; z-index: 9000; backdrop-filter: blur(10px); }
         
@@ -398,7 +417,9 @@
         </div>
     </div>
 
-    <!-- ADMIN STATIC BUTTON -->
+    <!-- ADMIN LOGOUT BUTTON -->
+    <div id="logoutFab" style="display:none;" onclick="window.logoutAdmin()">LOGOUT</div>
+    <!-- ADMIN LOGIN BUTTON -->
     <div id="adminFab" onclick="window.openAccessModal()">ADMIN</div>
 
     <!-- MAIN PAGE CONTENT -->
@@ -485,7 +506,7 @@
             </div>
         </div>
 
-        <!-- FAN SAY (NOW AT THE BOTTOM) -->
+        <!-- FAN SAY -->
         <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-10 shadow-xl max-w-5xl mx-auto relative">
             <div class="absolute -top-3 left-6 bg-amber-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest">What's Fan Say?</div>
             <div class="flex items-center gap-8 pt-4">
@@ -509,7 +530,7 @@
         </div>
 
         <div id="adminModerationSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-amber-500 mb-10 shadow-2xl max-w-2xl mx-auto relative">
-            <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto mt-4"></div>
+            <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto"></div>
         </div>
 
         <div class="footer-middle">PBBL 2.0 @2026 all rights reserved</div>
