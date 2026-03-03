@@ -24,7 +24,7 @@
         const MAX_PLAYERS = 15;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'pbb-offline-admin-final';
 
-        // --- GLOBAL STATE ---
+        // --- GLOBAL STATE & DATA ---
         let user, db; 
         let isAdminLoggedIn = false; 
         let purses = {};
@@ -43,7 +43,6 @@
             { id: "bowler", label: "Best Bowler", type: "player" }
         ];
 
-        // --- PLAYER DATA ---
         const players = [
             /* ICON PLAYERS */
             {sr:1,name:"ARJUN GORAIN",cat:"ICON"},{sr:4,name:"TRIDIP KARMAKAR",cat:"ICON"},{sr:7,name:"AFJAL ANSARY",cat:"ICON"},{sr:10,name:"NIMAI MAHATHA",cat:"ICON"},{sr:48,name:"RAJESH CHATTERJEE (RAJU)",cat:"ICON"},{sr:51,name:"SUBHADIP CHATTERJEE",cat:"ICON"},{sr:65,name:"MOHIT MOHTA",cat:"ICON"},{sr:91,name:"PORAN BAURI",cat:"ICON"},{sr:139,name:"SATYASADHAN RAJAK (INDRA)",cat:"ICON"},{sr:151,name:"PRAKASH PRASAD",cat:"ICON"},{sr:162,name:"MD IRFAN",cat:"ICON"},{sr:163,name:"SUMIT KARMAKAR",cat:"ICON"},{sr:189,name:"SANTOSH RAM",cat:"ICON"},{sr:205,name:"BIJOY SAHANI",cat:"ICON"},{sr:233,name:"BIKASH SHARMA (CHOTIYA)",cat:"ICON"},{sr:259,name:"INDRANIL SINGHA DEO (MANA)",cat:"ICON"},{sr:261,name:"PRAVIN SINGH",cat:"ICON"},{sr:290,name:"ASHRAFUL ANSARY",cat:"ICON"},
@@ -56,6 +55,13 @@
         ];
 
         // --- ATTACHING ALL FUNCTIONS TO WINDOW ---
+        window.getEmoji = (cat) => {
+            if (cat === "ICON") return "⭐";
+            if (cat === "U23") return "🧒";
+            if (cat === "ABOVE 40") return "🎖️";
+            return "";
+        };
+
         window.populateTeamLists = function() {
             const selectors = ["teamSelect", "teamTrackerSelect", "voteWinnerSelect"];
             selectors.forEach(id => {
@@ -101,15 +107,12 @@
             if (!selRaw) return document.getElementById("adminBoard").innerHTML = "";
             
             const sel = selRaw.trim().toUpperCase();
-            // Matching logic: sum prices of all players belonging to this team
             const sq = soldPlayers.filter(p => {
                 if(!p.bidder) return false;
                 const b = p.bidder.trim().toUpperCase();
-                // Match Joy Shib Shambhu variation
                 if (sel.includes("SHAMBHU") || sel.includes("SAMBHU")) {
                     return b.includes("SHAMBHU") || b.includes("SAMBHU");
                 }
-                // Match Uttam variation
                 if (sel.includes("UTTAM")) {
                     return b.includes("UTTAM");
                 }
@@ -119,13 +122,6 @@
             const spent = sq.reduce((acc, curr) => acc + (Number(curr.price) || 0), 0);
             const pv = INITIAL_PURSE - spent;
             const slotsLeft = MAX_PLAYERS - sq.length;
-
-            const getEmoji = (cat) => {
-                if (cat === "ICON") return "⭐";
-                if (cat === "U23") return "🧒";
-                if (cat === "ABOVE 40") return "🎖️";
-                return "";
-            };
 
             let statsHtml = isAdminLoggedIn ? `
                 <div class="grid grid-cols-2 gap-4 mt-2">
@@ -150,7 +146,7 @@
                         ${sq.length === 0 ? '<p class="text-center py-4 text-slate-300 font-bold uppercase text-[10px]">No players drafted yet.</p>' : 
                         sq.map((p, i) => `
                             <div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100 transition-all hover:bg-white hover:shadow-md">
-                                <span class="text-sm text-slate-800 font-black">#${i+1} ${getEmoji(p.cat)} ${p.name}</span>
+                                <span class="text-sm text-slate-800 font-black">#${i+1} ${window.getEmoji(p.cat)} ${p.name}</span>
                                 <div class="flex items-center gap-4">
                                     <span class="text-slate-900 font-black text-sm">₹${p.price}</span>
                                     ${isAdminLoggedIn ? `<button onclick="window.startRecallProcess('${p.id}', '${selRaw}', ${p.price}, ${p.sr})" class="bg-rose-500 text-white px-3 py-1 rounded-lg text-[8px] font-black uppercase transition-all hover:bg-rose-600">RECALL</button>` : ''}
@@ -159,8 +155,6 @@
                     </div>
                 </div>`;
         }
-
-        window.updateTicker = function() {}
 
         window.searchGlobalPlayer = function() {
             const input = document.getElementById("globalSearchInput").value.trim().toLowerCase();
@@ -178,19 +172,12 @@
                 return s === input || pad === input || plain === input || n.includes(input);
             }).slice(0, 8);
 
-            const getEmoji = (cat) => {
-                if (cat === "ICON") return "⭐";
-                if (cat === "U23") return "🧒";
-                if (cat === "ABOVE 40") return "🎖️";
-                return "";
-            };
-
             found.forEach(p => {
                 const soldInfo = soldPlayers.find(s => s.sr === p.sr);
                 const div = document.createElement("div");
                 div.className = "flex justify-between items-center p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-default";
                 let statusHtml = soldInfo ? `<div class="flex flex-col items-end"><span class="text-[10px] font-black text-sky-700 uppercase">${soldInfo.bidder}</span><span class="text-[10px] font-black text-emerald-600">₹${soldInfo.price}</span></div>` : `<span class="text-slate-400 text-[10px] font-black uppercase">Unsold</span>`;
-                div.innerHTML = `<div class="flex flex-col"><span class="text-xs font-black text-slate-800 uppercase">${getEmoji(p.cat)} ${p.name}</span><span class="text-[10px] text-slate-400 font-bold">SR: ${p.sr.toString().padStart(3, '0')} • ${p.cat}</span></div>${statusHtml}`;
+                div.innerHTML = `<div class="flex flex-col"><span class="text-xs font-black text-slate-800 uppercase">${window.getEmoji(p.cat)} ${p.name}</span><span class="text-[10px] text-slate-400 font-bold">SR: ${p.sr.toString().padStart(3, '0')} • ${p.cat}</span></div>${statusHtml}`;
                 resultBox.appendChild(div);
             });
         }
@@ -208,21 +195,14 @@
                 return !soldPlayers.some(s => s.sr === p.sr) && (srStr.includes(input) || srPadded.includes(input) || p.name.toLowerCase().includes(input));
             }).slice(0, 5);
 
-            const getEmoji = (cat) => {
-                if (cat === "ICON") return "⭐";
-                if (cat === "U23") return "🧒";
-                if (cat === "ABOVE 40") return "🎖️";
-                return "";
-            };
-
             matches.forEach(p => {
                 const div = document.createElement("div");
                 const sr3 = p.sr.toString().padStart(3, '0');
                 div.className = "p-2 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-gray-100 text-[11px] font-bold";
-                div.innerText = `${getEmoji(p.cat)} [${sr3}] ${p.name}`;
+                div.innerText = `${window.getEmoji(p.cat)} [${sr3}] ${p.name}`;
                 div.onclick = () => {
                     document.getElementById("playerInput").value = sr3;
-                    document.getElementById("selectedPlayerInfo").innerText = `${getEmoji(p.cat)} ${p.name}`;
+                    document.getElementById("selectedPlayerInfo").innerText = `${window.getEmoji(p.cat)} ${p.name}`;
                     list.innerHTML = "";
                     document.getElementById("priceInput").focus();
                 };
@@ -230,6 +210,7 @@
             });
         }
 
+        // --- ADMIN LOGIN/LOGOUT ---
         window.openAccessModal = function() { document.getElementById("accessOverlay").style.display = "flex"; }
         window.verifyAccessAndShow = function() {
             if(document.getElementById("accessInput").value === "723156") {
@@ -290,25 +271,28 @@
             document.getElementById("pinInput").value = "";
         }
 
+        window.updateTicker = function() {}
         window.approveComment = async function(id) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id), { approved: true }); }
         window.deleteComment = async function(id) { if(confirm("Del?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id)); }
 
-        // --- SETUP LISTENERS & INIT ---
+        // --- FIREBASE SETUP ---
         function setupListeners() {
             if (!user) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'soldPlayers'), (snap) => {
                 soldPlayers = snap.docs.map(d => ({id: d.id, ...d.data()}));
                 window.renderBoard();
-            });
+            }, (err) => console.error("Sold Snapshot Error:", err));
+
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fanComments'), (snap) => {
                 fanComments = snap.docs.map(d => ({id: d.id, ...d.data()}));
                 window.renderApprovedComments();
                 window.renderAdminComments();
-            });
+            }, (err) => console.error("Comments Snapshot Error:", err));
+
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'votes'), (snap) => {
                 votesData = {}; snap.docs.forEach(d => { votesData[d.id] = d.data(); });
                 window.renderVoteResults();
-            });
+            }, (err) => console.error("Votes Snapshot Error:", err));
         }
 
         async function init() {
@@ -440,7 +424,7 @@
         </div>
     </div>
 
-    <!-- ADMIN STATIC BUTTON -->
+    <!-- ADMIN STATIC BUTTONS -->
     <div id="logoutFab" style="display:none;" onclick="window.logoutAdmin()">LOGOUT</div>
     <div id="adminFab" onclick="window.openAccessModal()">ADMIN</div>
 
@@ -481,7 +465,7 @@
                 <div class="flex-grow"><table class="table-standard w-full h-full text-[10px]"><tbody><tr><td>Playing 11 Composition</td><td>1 Above 40 🎖️, 1 U23 🧒, 1 Icon ⭐ (Mandatory)</td></tr><tr><td>Match Format</td><td>6 Overs Per Inning</td></tr><tr><td>Substitutions</td><td>Impact Player Rule Applicable</td></tr><tr><td>Semi-Final Phase</td><td>Groups decided via Lottery</td></tr><tr><td>Finals Format</td><td>8 to 10 Overs (SF & Final)</td></tr><tr><td>Squad Cap</td><td>Max 15 Players per team</td></tr></tbody></table></div>
             </div>
 
-            <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl flex flex-col overflow-hidden">
+            <div class="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl flex flex-col overflow-hidden transition-all hover:shadow-2xl">
                 <div class="bg-slate-900 p-5 border-b border-slate-800"><h2 class="text-xs font-black text-white uppercase tracking-[0.2em]">Tournament Fixtures</h2></div>
                 <div class="p-3 flex-grow overflow-y-auto max-h-[500px]">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
@@ -552,7 +536,7 @@
         </div>
 
         <div id="adminModerationSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-amber-500 mb-10 shadow-2xl max-w-2xl mx-auto relative">
-            <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto"></div>
+            <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto mt-4"></div>
         </div>
 
         <div class="footer-middle">PBBL 2.0 @2026 all rights reserved</div>
