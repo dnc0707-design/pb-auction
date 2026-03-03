@@ -452,21 +452,21 @@
                         <select id="voteWinnerSelect" onchange="window.selectVoteTeam('winner', this.value)" class="w-full p-3 rounded-xl border-none font-black text-sm shadow-sm cursor-pointer transition-all"></select>
                     </div>
                     <div id="container_pot" class="vote-container bg-emerald-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-emerald-900 uppercase mb-3 text-center tracking-widest">Voting Meter</h4>
+                        <h4 class="text-xs font-black text-emerald-900 uppercase mb-3 text-center tracking-widest">Player of the Tournament</h4>
                         <div class="relative">
                             <input type="text" id="voteSearch_pot" onkeyup="window.searchVotePlayer('pot')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm">
                             <div id="voteSuggest_pot" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
                         </div>
                     </div>
                     <div id="container_batsman" class="vote-container bg-amber-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-amber-900 uppercase mb-3 text-center tracking-widest">Voting Meter</h4>
+                        <h4 class="text-xs font-black text-amber-900 uppercase mb-3 text-center tracking-widest">Best Batsman</h4>
                         <div class="relative">
                             <input type="text" id="voteSearch_batsman" onkeyup="window.searchVotePlayer('batsman')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm">
                             <div id="voteSuggest_batsman" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
                         </div>
                     </div>
                     <div id="container_bowler" class="vote-container bg-rose-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-rose-900 uppercase mb-3 text-center tracking-widest">Voting Meter</h4>
+                        <h4 class="text-xs font-black text-rose-900 uppercase mb-3 text-center tracking-widest">Best Bowler</h4>
                         <div class="relative">
                             <input type="text" id="voteSearch_bowler" onkeyup="window.searchVotePlayer('bowler')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm">
                             <div id="voteSuggest_bowler" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
@@ -497,12 +497,12 @@
                 <p class="text-sm md:text-2xl text-sky-600 font-black tracking-[0.3em] uppercase">Org by Adra Wireless</p>
                 
                 <!-- NEW SMALL GLOWING SPHERE VOTING BUTTON -->
-                <button onclick="window.openVoteModal()" class="w-32 h-32 md:w-36 md:h-36 rounded-full bg-blue-600 text-white font-black text-[9px] md:text-[10px] uppercase flex flex-col items-center justify-center text-center p-6 shadow-[inset_-10px_-10px_30px_rgba(0,0,0,0.3)] border-4 border-blue-400 animate-glow transition-all active:scale-90">
+                <button onclick="window.openVoteModal()" class="w-32 h-32 md:w-36 md:h-36 rounded-full bg-blue-600 text-white font-black text-[9px] md:text-[10px] uppercase flex flex-col items-center justify-center text-center p-6 shadow-[inset_-10px_-10px_30px_rgba(0,0,0,0.3)] border-4 border-blue-400 animate-glow transition-all active:scale-90 relative">
                     <span class="leading-tight">VOTE FOR<br>FAV TEAM/PLAYER</span>
                 </button>
             </div>
 
-            <div class="flex flex-col gap-2 mt-8">
+            <div class="flex flex-col gap-2 mt-10">
                 <p class="text-xs md:text-xl text-amber-600 font-black uppercase tracking-[0.2em] underline decoration-amber-200 underline-offset-4">22nd March to 26th March 2026</p>
                 <p class="text-xs md:text-xl text-emerald-600 font-black uppercase tracking-[0.1em]">Venue: Adra Engineering Ground</p>
             </div>
