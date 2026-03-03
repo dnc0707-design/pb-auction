@@ -24,7 +24,7 @@
         const MAX_PLAYERS = 15;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'pbb-offline-admin-final';
 
-        // --- GLOBAL STATE & DATA ---
+        // --- GLOBAL STATE ---
         let user, db; 
         let isAdminLoggedIn = false; 
         let purses = {};
@@ -75,6 +75,32 @@
             if(overlay) overlay.style.display = "flex"; 
         }
 
+        window.searchVotePlayer = function(catId, filter) {
+            const input = document.getElementById(`voteSearch_${catId}`).value.trim().toLowerCase();
+            const list = document.getElementById(`voteSuggest_${catId}`);
+            if(!list) return;
+            list.innerHTML = ""; if(input.length < 1) return;
+            const matches = players.filter(p => {
+                if (!p.sr) return false;
+                const s = p.sr.toString();
+                const pad = s.padStart(3, '0');
+                const catMatch = !filter || p.cat === filter;
+                return catMatch && (s === input || pad === input || p.name.toLowerCase().includes(input));
+            }).slice(0, 3);
+            matches.forEach(p => {
+                const div = document.createElement("div");
+                div.className = "p-2 hover:bg-blue-600 hover:text-white cursor-pointer text-[10px] font-bold border-b";
+                div.innerText = `[${p.sr.toString().padStart(3, '0')}] ${p.name}`;
+                div.onclick = () => {
+                    document.getElementById(`voteSearch_${catId}`).value = p.name;
+                    selectedVotes[catId] = p.name;
+                    list.innerHTML = "";
+                    document.getElementById(`container_${catId}`).classList.add('border-emerald-400', 'bg-emerald-50');
+                };
+                list.appendChild(div);
+            });
+        }
+
         window.populateTeamLists = function() {
             const selectors = ["teamSelect", "teamTrackerSelect", "voteWinnerSelect"];
             selectors.forEach(id => {
@@ -120,7 +146,6 @@
             if (!selRaw) return document.getElementById("adminBoard").innerHTML = "";
             
             const sel = selRaw.trim().toUpperCase();
-            // Robust matching for teams with variants
             const sq = soldPlayers.filter(p => {
                 if(!p.bidder) return false;
                 const b = p.bidder.trim().toUpperCase();
@@ -139,12 +164,12 @@
 
             let statsHtml = isAdminLoggedIn ? `
                 <div class="grid grid-cols-2 gap-4 mt-2">
-                    <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col">
+                    <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col transition-all">
                         <span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest leading-none">Remaining Budget</span>
                         <span class="text-emerald-700 font-mono font-black text-2xl mt-1">₹${pv}</span>
                     </div>
-                    <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col">
-                        <span class="text-[10px] text-rose-600 font-black uppercase tracking-widest leading-none">Draft Slots Left</span>
+                    <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col transition-all">
+                        <span class="text-[10px] text-rose-600 font-black uppercase tracking-widest leading-none">Slots Left</span>
                         <span class="text-rose-700 font-black text-2xl mt-1">${slotsLeft}</span>
                     </div>
                 </div>
@@ -224,6 +249,7 @@
             });
         }
 
+        // --- ADMIN LOGIN/LOGOUT ---
         window.openAccessModal = function() { document.getElementById("accessOverlay").style.display = "flex"; }
         window.verifyAccessAndShow = function() {
             if(document.getElementById("accessInput").value === "723156") {
@@ -284,11 +310,31 @@
             document.getElementById("pinInput").value = "";
         }
 
-        window.updateTicker = function() {}
         window.approveComment = async function(id) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id), { approved: true }); }
         window.deleteComment = async function(id) { if(confirm("Del?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id)); }
 
-        // --- FIREBASE INITIALIZATION ---
+        window.submitAllVotes = async function() {
+            const voteKeys = Object.keys(selectedVotes);
+            if(!voteKeys.length) return alert("Select a category!");
+            let casted = 0;
+            for(const id of voteKeys) {
+                if(localStorage.getItem(`voted_${id}`)) continue;
+                const ref = doc(db, 'artifacts', appId, 'public', 'data', 'votes', id);
+                const snap = await getDoc(ref);
+                if(!snap.exists()) await setDoc(ref, { [selectedVotes[id]]: 1 });
+                else await updateDoc(ref, { [selectedVotes[id]]: increment(1) });
+                localStorage.setItem(`voted_${id}`, "true");
+                casted++;
+            }
+            if(casted > 0) alert("Thank you! Votes submitted.");
+            else alert("Voted already.");
+            selectedVotes = {};
+            document.querySelectorAll('.vote-container').forEach(el => el.classList.remove('border-emerald-400', 'bg-emerald-50'));
+            document.querySelectorAll('.vote-input').forEach(el => el.value = "");
+            window.renderVoteResults();
+        }
+
+        // --- FIREBASE SETUP ---
         function setupListeners() {
             if (!user) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'soldPlayers'), (snap) => {
@@ -351,6 +397,12 @@
         
         .footer-middle { font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 2.5px; text-align: center; padding: 40px 0; border-top: 1px solid #e2e8f0; margin-top: 50px; }
         .vote-container { transition: all 0.3s; border: 1px solid #e2e8f0; border-radius: 24px; }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(37, 99, 235, 0.6), inset -5px -5px 25px rgba(0,0,0,0.3); transform: scale(1); }
+            50% { box-shadow: 0 0 35px rgba(37, 99, 235, 1), inset -5px -5px 25px rgba(0,0,0,0.3); transform: scale(1.05); }
+        }
+        .animate-glow { animation: pulse-glow 2s infinite ease-in-out; }
     </style>
 </head>
 <body class="p-4 pt-16 md:p-8">
@@ -396,25 +448,25 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div class="space-y-6">
                     <div id="container_winner" class="vote-container bg-blue-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-blue-900 uppercase mb-3 text-center tracking-widest">Winner PBBL-2.0?</h4>
+                        <h4 class="text-xs font-black text-blue-900 uppercase mb-3 text-center tracking-widest">Who will win PBBL-2.0?</h4>
                         <select id="voteWinnerSelect" onchange="window.selectVoteTeam('winner', this.value)" class="w-full p-3 rounded-xl border-none font-black text-sm shadow-sm cursor-pointer transition-all"></select>
                     </div>
                     <div id="container_pot" class="vote-container bg-emerald-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-emerald-900 uppercase mb-3 text-center tracking-widest">Player of the Tournament</h4>
+                        <h4 class="text-xs font-black text-emerald-900 uppercase mb-3 text-center tracking-widest">Voting Meter</h4>
                         <div class="relative">
                             <input type="text" id="voteSearch_pot" onkeyup="window.searchVotePlayer('pot')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm">
                             <div id="voteSuggest_pot" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
                         </div>
                     </div>
                     <div id="container_batsman" class="vote-container bg-amber-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-amber-900 uppercase mb-3 text-center tracking-widest">Best Batsman</h4>
+                        <h4 class="text-xs font-black text-amber-900 uppercase mb-3 text-center tracking-widest">Voting Meter</h4>
                         <div class="relative">
                             <input type="text" id="voteSearch_batsman" onkeyup="window.searchVotePlayer('batsman')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm">
                             <div id="voteSuggest_batsman" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
                         </div>
                     </div>
                     <div id="container_bowler" class="vote-container bg-rose-50 p-5 rounded-3xl border">
-                        <h4 class="text-xs font-black text-rose-900 uppercase mb-3 text-center tracking-widest">Best Bowler</h4>
+                        <h4 class="text-xs font-black text-rose-900 uppercase mb-3 text-center tracking-widest">Voting Meter</h4>
                         <div class="relative">
                             <input type="text" id="voteSearch_bowler" onkeyup="window.searchVotePlayer('bowler')" placeholder="Search Name/SR..." class="vote-input w-full p-3 rounded-xl border-none font-black text-sm outline-none shadow-sm">
                             <div id="voteSuggest_bowler" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
@@ -423,30 +475,34 @@
                     <button onclick="window.submitAllVotes()" class="w-full p-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all uppercase tracking-widest">SUBMIT ALL VOTES</button>
                 </div>
                 <div class="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
-                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center underline decoration-slate-200">Live Poll Analytics</h4>
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center underline decoration-slate-200">Voting Meter</h4>
                     <div class="space-y-6">
-                        <div><p class="text-[10px] font-black text-blue-600 mb-2 uppercase">Winner Prediction</p><div id="voteResult_winner"></div></div>
-                        <div><p class="text-[10px] font-black text-emerald-600 mb-2 uppercase tracking-tighter">Player of the Tournament</p><div id="voteResult_pot"></div></div>
-                        <div><p class="text-[10px] font-black text-amber-600 mb-2 uppercase">Top Batsman</p><div id="voteResult_batsman"></div></div>
-                        <div><p class="text-[10px] font-black text-rose-600 mb-2 uppercase">Top Bowler</p><div id="voteResult_bowler"></div></div>
+                        <div id="voteResult_winner"></div>
+                        <div id="voteResult_pot"></div>
+                        <div id="voteResult_batsman"></div>
+                        <div id="voteResult_bowler"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ADMIN STATIC BUTTON -->
-    <div id="logoutFab" style="display:none;" onclick="window.logoutAdmin()">LOGOUT</div>
-    <div id="adminFab" onclick="window.openAccessModal()">ADMIN</div>
-
     <!-- MAIN PAGE CONTENT -->
     <div class="max-w-7xl mx-auto">
-        <!-- HEADER CENTERED -->
         <header class="flex flex-col items-center justify-center mb-10 border-b border-slate-200 pb-10 text-center relative">
             <div id="status" class="mb-4 px-4 py-1 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest shadow-sm border border-slate-200">Connecting...</div>
             <h1 class="text-3xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase italic leading-none mb-3">PURULIA BIG BASH LEAGUE-2.0</h1>
-            <p class="text-sm md:text-2xl text-sky-600 font-black tracking-[0.3em] uppercase mb-4">Org by Adra Wireless</p>
-            <div class="flex flex-col gap-2">
+            
+            <div class="flex flex-col items-center gap-6 mt-4">
+                <p class="text-sm md:text-2xl text-sky-600 font-black tracking-[0.3em] uppercase">Org by Adra Wireless</p>
+                
+                <!-- NEW SMALL GLOWING SPHERE VOTING BUTTON -->
+                <button onclick="window.openVoteModal()" class="w-32 h-32 md:w-36 md:h-36 rounded-full bg-blue-600 text-white font-black text-[9px] md:text-[10px] uppercase flex flex-col items-center justify-center text-center p-6 shadow-[inset_-10px_-10px_30px_rgba(0,0,0,0.3)] border-4 border-blue-400 animate-glow transition-all active:scale-90">
+                    <span class="leading-tight">VOTE FOR<br>FAV TEAM/PLAYER</span>
+                </button>
+            </div>
+
+            <div class="flex flex-col gap-2 mt-8">
                 <p class="text-xs md:text-xl text-amber-600 font-black uppercase tracking-[0.2em] underline decoration-amber-200 underline-offset-4">22nd March to 26th March 2026</p>
                 <p class="text-xs md:text-xl text-emerald-600 font-black uppercase tracking-[0.1em]">Venue: Adra Engineering Ground</p>
             </div>
@@ -507,17 +563,14 @@
             </div>
         </div>
 
-        <!-- VOTING RESULTS SECTION -->
+        <!-- VOTING ANALYTICS SECTION -->
         <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-10 shadow-xl max-w-5xl mx-auto relative">
-            <div class="absolute -top-3 left-6 bg-blue-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest shadow-md">Vote for your favourite Team / Player</div>
-            <div class="flex justify-center mb-6 pt-4">
-                <button onclick="window.openVoteModal()" class="px-8 py-3 bg-blue-600 text-white font-black rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-xs tracking-widest uppercase border-b-4 border-blue-800">CLICK HERE TO VOTE</button>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
-                <div><h5 class="text-[10px] font-black text-blue-600 uppercase mb-3 text-center border-b pb-1">Championship Race</h5><div id="voteResult_winner"></div></div>
-                <div><h5 class="text-[10px] font-black text-emerald-600 uppercase mb-3 text-center border-b pb-1">Player of the Tournament</h5><div id="voteResult_pot"></div></div>
-                <div><h5 class="text-[10px] font-black text-amber-600 uppercase mb-3 text-center border-b pb-1">Best Batsman</h5><div id="voteResult_batsman"></div></div>
-                <div><h5 class="text-[10px] font-black text-rose-600 uppercase mb-3 text-center border-b pb-1">Best Bowler</h5><div id="voteResult_bowler"></div></div>
+            <div class="absolute -top-3 left-6 bg-blue-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest shadow-md">Voting Meter</div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8 pt-4">
+                <div id="voteResult_winner"></div>
+                <div id="voteResult_pot"></div>
+                <div id="voteResult_batsman"></div>
+                <div id="voteResult_bowler"></div>
             </div>
         </div>
 
@@ -533,18 +586,23 @@
             </div>
         </div>
 
+        <!-- ADMIN STATIC BUTTONS -->
+        <div id="logoutFab" style="display:none;" onclick="window.logoutAdmin()">LOGOUT</div>
+        <div id="adminFab" onclick="window.openAccessModal()">ADMIN</div>
+
         <!-- HIDDEN SECTIONS FOR ADMIN -->
-        <div id="saleEntrySection" style="display:none;" class="bg-white p-8 rounded-[3rem] border-2 border-emerald-500 mb-10 shadow-2xl max-w-3xl mx-auto relative">
+        <div id="saleEntrySection" style="display:none;" class="bg-white p-8 rounded-[3rem] border-2 border-emerald-500 mb-10 shadow-2xl max-w-3xl mx-auto relative transition-all duration-500">
             <div class="absolute -top-4 left-10 bg-emerald-600 text-white text-[10px] font-black px-6 py-2 rounded-full uppercase tracking-[0.2em] shadow-lg">Transaction Hub</div>
             <form id="saleForm" onsubmit="window.startSaleProcess(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-6">
-                <div class="relative"><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Sr No</label><input type="text" id="playerInput" autocomplete="off" onkeyup="window.filterPlayers()" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm border-none outline-none"><div id="playerSuggestions" class="absolute z-50 left-0 right-0 bg-white border border-slate-100 rounded-2xl max-h-48 overflow-y-auto shadow-2xl mt-1"></div></div>
-                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Price</label><input type="number" id="priceInput" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm border-none outline-none"></div>
-                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Team</label><select id="teamSelect" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm border-none outline-none"></select></div>
+                <div class="relative"><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Sr No</label><input type="text" id="playerInput" autocomplete="off" onkeyup="window.filterPlayers()" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm border-none outline-none focus:ring-2 focus:ring-sky-500 transition-all"><div id="playerSuggestions" class="absolute z-50 left-0 right-0 bg-white border border-slate-100 rounded-2xl max-h-48 overflow-y-auto shadow-2xl mt-1"></div></div>
+                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Price</label><input type="number" id="priceInput" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm border-none outline-none focus:ring-2 focus:ring-sky-500 transition-all"></div>
+                <div><label class="text-[10px] font-black text-slate-400 uppercase ml-2">Team</label><select id="teamSelect" class="w-full p-3 rounded-2xl bg-slate-50 font-black text-sm border-none outline-none focus:ring-2 focus:ring-sky-500 transition-all"></select></div>
                 <button type="submit" class="w-full h-[52px] bg-slate-900 text-white font-black rounded-2xl text-[11px] shadow-xl hover:bg-black transition-all">SOLD</button>
             </form>
         </div>
 
-        <div id="adminModerationSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-amber-500 mb-10 shadow-2xl max-w-2xl mx-auto relative">
+        <div id="adminModerationSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-amber-500 mb-10 shadow-2xl max-w-2xl mx-auto relative transition-all duration-500">
+            <div class="absolute -top-3 left-6 bg-amber-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest shadow-md">Moderation Hub</div>
             <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto mt-4"></div>
         </div>
 
