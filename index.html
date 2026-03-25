@@ -29,20 +29,12 @@
         let isAdminLoggedIn = false; 
         let soldPlayers = [];
         let fanComments = [];
-        let votesData = {};
         let payoutRequests = [];
         let pendingAction = null; 
-        let selectedVotes = {};
         let selectedPlayerForFee = null;
+        let purses = {};
 
         const teams = ["KRISHNAPUR", "ASTIK 11","AYUSHMAN XI","MAHAKAL XI LAULARA","BARABAZAR RED DRAGONS","JOY SHIB SHAMBHU","BABAI XI ADRA","AGGRESSIVE PARBELIA","UTTAM XI PURULIA","MAHADEV WARRIORS","PUNCHA PIRATES","HURA PANTHERS","SHRIHAN XI","MANBHUM WARRIORS","MANBAZAR SUPER KINGS","AAROHI XI"];
-
-        const voteCategories = [
-            { id: "winner", label: "Who will win PBBL-2.0?", type: "team" },
-            { id: "pot", label: "Player of the Tournament", type: "player" },
-            { id: "batsman", label: "Best Batsman", type: "player" },
-            { id: "bowler", label: "Best Bowler", type: "player" }
-        ];
 
         const players = [
             /* ICON PLAYERS */
@@ -63,93 +55,30 @@
             return "";
         };
 
-        window.openVoteModal = function() { document.getElementById("voteOverlay").style.display = "flex"; window.renderVoteResults(); }
         window.openFanSayModal = function() { document.getElementById("fanSayOverlay").style.display = "flex"; }
         window.openFeeModal = function() { document.getElementById("feeOverlay").style.display = "flex"; }
-
-        window.renderVoteResults = function() {
-            voteCategories.forEach(cat => {
-                const data = votesData[cat.id] || {};
-                const total = Object.values(data).reduce((s, v) => s + v, 0);
-                
-                let html = total ? Object.entries(data).sort((a,b) => b[1] - a[1]).slice(0, 3).map(([name, count]) => {
-                    const p = Math.round((count/total)*100);
-                    return `<div class="mb-2">
-                        <div class="flex justify-between text-[9px] font-black uppercase">
-                            <span>${name}</span>
-                            <span>${count} Votes (${p}%)</span>
-                        </div>
-                        <div class="w-full bg-slate-200 h-1.5 rounded-full mt-0.5">
-                            <div class="bg-blue-600 h-full transition-all duration-1000" style="width: ${p}%"></div>
-                        </div>
-                    </div>`;
-                }).join('') : "<p class='text-[9px] text-slate-400 italic'>Waiting for votes...</p>";
-
-                if(document.getElementById(`voteResult_${cat.id}`)) document.getElementById(`voteResult_${cat.id}`).innerHTML = html;
-                if(document.getElementById(`voteResult_bottom_${cat.id}`)) document.getElementById(`voteResult_bottom_${cat.id}`).innerHTML = html;
-            });
+        window.closeQRViewer = function() { document.getElementById("qrViewOverlay").style.display = "none"; }
+        
+        window.viewQR = function(data) {
+            const viewer = document.getElementById("qrViewOverlay");
+            const img = document.getElementById("viewedQRImg");
+            if(viewer && img) {
+                img.src = data;
+                viewer.style.display = "flex";
+            }
         }
 
-        window.searchVotePlayer = function(catId, filter) {
-            const input = document.getElementById(`voteSearch_${catId}`).value.trim().toLowerCase();
-            const list = document.getElementById(`voteSuggest_${catId}`);
-            if(!list) return;
-            list.innerHTML = ""; if(input.length < 1) return;
-            const matches = players.filter(p => {
-                if (!p.sr) return false;
-                const s = p.sr.toString();
-                const pad = s.padStart(3, '0');
-                return s === input || pad === input || p.name.toLowerCase().includes(input);
-            }).slice(0, 3);
-            matches.forEach(p => {
-                const div = document.createElement("div");
-                div.className = "p-2 hover:bg-blue-600 hover:text-white cursor-pointer text-[10px] font-bold border-b";
-                div.innerText = `[${p.sr.toString().padStart(3, '0')}] ${p.name}`;
-                div.onclick = () => {
-                    document.getElementById(`voteSearch_${catId}`).value = p.name;
-                    selectedVotes[catId] = p.name;
-                    list.innerHTML = "";
-                    document.getElementById(`container_${catId}`).classList.add('border-emerald-400', 'bg-emerald-50');
-                };
-                list.appendChild(div);
-            });
+        window.renderApprovedComments = function() {
+            const approved = fanComments.filter(c => c.approved).sort((a,b) => b.timestamp - a.timestamp);
+            const container = document.getElementById("fanSayDisplay");
+            if(!container) return;
+            container.innerHTML = approved.length ? approved.map(c => `<div class="px-4 py-2 border-l-4 border-amber-500 bg-amber-50 rounded-r-xl shadow-sm"><p class="text-sm font-black text-slate-800">"${c.text}"</p><p class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">— ${c.sender}</p></div>`).join('') : "<span class='text-slate-400 font-bold'>Awaiting fan voices...</span>";
         }
 
-        window.searchFeePlayer = function() {
-            const input = document.getElementById("feePlayerSearch").value.trim().toLowerCase();
-            const list = document.getElementById("feeSuggest");
-            list.innerHTML = ""; if(input.length < 1) return;
-            const matches = players.filter(p => p.name.toLowerCase().includes(input) || (p.sr && p.sr.toString().padStart(3,'0') === input)).slice(0, 5);
-            matches.forEach(p => {
-                const div = document.createElement("div");
-                div.className = "p-3 hover:bg-emerald-600 hover:text-white cursor-pointer border-b text-xs font-black";
-                div.innerText = `[${p.sr.toString().padStart(3,'0')}] ${p.name}`;
-                div.onclick = () => {
-                    selectedPlayerForFee = p;
-                    document.getElementById("feePlayerSearch").value = p.name;
-                    list.innerHTML = "";
-                    document.getElementById("feePlayerInfo").innerHTML = `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black italic">Selected: ${p.name} (SR ${p.sr})</span>`;
-                };
-                list.appendChild(div);
-            });
-        }
-
-        window.submitFeeProof = async function() {
-            if(!selectedPlayerForFee) return alert("Select your name first!");
-            const fileInput = document.getElementById("feeFile");
-            if(!fileInput.files.length) return alert("Please upload your receiving QR screenshot!");
-            
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'feeRequests'), {
-                name: selectedPlayerForFee.name,
-                sr: selectedPlayerForFee.sr,
-                timestamp: Date.now(),
-                status: "Pending Verification"
-            });
-            alert("Your QR has been sent to committee. They will pay you soon!");
-            document.getElementById("feeOverlay").style.display = "none";
-            document.getElementById("feeForm").reset();
-            selectedPlayerForFee = null;
-            document.getElementById("feePlayerInfo").innerHTML = "";
+        window.renderAdminComments = function() {
+            const container = document.getElementById("adminCommentList");
+            if(!container) return;
+            container.innerHTML = fanComments.sort((a,b) => b.timestamp - a.timestamp).map(c => `<div class="flex justify-between items-center p-3 border-b border-slate-100 ${c.approved ? 'opacity-50' : 'bg-blue-50'}"><div class="flex-1"><p class="text-xs font-black">"${c.text}"</p><p class="text-[9px] font-bold text-slate-400 mt-1">${c.sender}</p></div><div class="flex gap-2">${!c.approved ? `<button onclick="window.approveComment('${c.id}')" class="bg-emerald-600 text-white text-[9px] px-2 py-1 rounded font-black">OK</button>` : ''}<button onclick="window.deleteComment('${c.id}')" class="bg-rose-600 text-white text-[9px] px-2 py-1 rounded font-black">X</button></div></div>`).join('');
         }
 
         window.renderBoard = function() {
@@ -168,9 +97,9 @@
             const pv = INITIAL_PURSE - spent;
             const slotsLeft = MAX_PLAYERS - sq.length;
 
-            let statsHtml = isAdminLoggedIn ? `<div class="grid grid-cols-2 gap-4 mt-2"><div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col"><span class="text-[10px] text-emerald-600 font-black uppercase">Remaining Budget</span><span class="text-emerald-700 font-mono font-black text-2xl">₹${pv}</span></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col"><span class="text-[10px] text-rose-600 font-black uppercase">Slots Left</span><span class="text-rose-700 font-black text-2xl">${slotsLeft}</span></div></div>` : '';
+            let statsHtml = isAdminLoggedIn ? `<div class="grid grid-cols-2 gap-4 mt-2"><div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col"><span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest leading-none">Remaining Budget</span><span class="text-emerald-700 font-mono font-black text-2xl mt-1">₹${pv}</span></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col"><span class="text-[10px] text-rose-600 font-black uppercase tracking-widest leading-none">Draft Slots Left</span><span class="text-rose-700 font-black text-2xl mt-1">${slotsLeft}</span></div></div>` : '';
 
-            document.getElementById("adminBoard").innerHTML = `<div class="card p-6 border border-slate-200 rounded-[2.5rem] bg-white flex flex-col shadow-xl max-w-4xl mx-auto w-full transition-all duration-500"><div class="border-b border-slate-100 pb-4 mb-4"><div class="font-black text-slate-900 text-2xl tracking-tighter uppercase italic">${selRaw}</div>${statsHtml}</div><div class="space-y-2">${sq.length === 0 ? '<p class="text-center py-4 text-slate-300 font-bold uppercase text-[10px]">No players drafted yet.</p>' : sq.map((p, i) => `<div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100"><span class="text-sm text-slate-800 font-black">#${i+1} ${window.getEmoji(p.cat)} ${p.name}</span><div class="flex items-center gap-4"><span class="text-slate-900 font-black text-sm">₹${p.price}</span>${isAdminLoggedIn ? `<button onclick="window.startRecallProcess('${p.id}')" class="bg-rose-500 text-white px-3 py-1 rounded-lg text-[8px] font-black uppercase transition-all hover:bg-rose-600">RECALL</button>` : ''}</div></div>`).join('')}</div></div>`;
+            document.getElementById("adminBoard").innerHTML = `<div class="card p-6 border border-slate-200 rounded-[2.5rem] bg-white flex flex-col shadow-xl max-w-4xl mx-auto w-full transition-all duration-500"><div class="border-b border-slate-100 pb-4 mb-4"><div class="font-black text-slate-900 text-2xl tracking-tighter uppercase italic">${selRaw}</div>${statsHtml}</div><div class="space-y-2">${sq.length === 0 ? '<p class="text-center py-4 text-slate-300 font-bold uppercase text-[10px]">No players drafted yet.</p>' : sq.map((p, i) => `<div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100 transition-all hover:bg-white hover:shadow-md"><span class="text-sm text-slate-800 font-black">#${i+1} ${window.getEmoji(p.cat)} ${p.name}</span><div class="flex items-center gap-4"><span class="text-slate-900 font-black text-sm">₹${p.price}</span>${isAdminLoggedIn ? `<button onclick="window.startRecallProcess('${p.id}')" class="bg-rose-500 text-white px-3 py-1 rounded-lg text-[8px] font-black uppercase transition-all hover:bg-rose-600">RECALL</button>` : ''}</div></div>`).join('')}</div></div>`;
         }
 
         window.renderAdminPayouts = function() {
@@ -180,15 +109,16 @@
                 <div class="flex justify-between items-center p-3 border-b border-slate-100 bg-emerald-50">
                     <div class="flex-1">
                         <p class="text-xs font-black uppercase">${r.name} (SR ${r.sr})</p>
-                        <p class="text-[9px] font-bold text-slate-400 mt-1 uppercase italic">Payout Requested - QR Uploaded</p>
+                        <p class="text-[9px] font-bold text-slate-400 mt-1 uppercase italic">Payout Requested</p>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="window.deletePayout('${r.id}')" class="bg-rose-600 text-white text-[9px] px-3 py-1 rounded font-black uppercase">Paid/Del</button>
+                        <button onclick="window.viewQR('${r.qrData}')" class="text-emerald-700 border-2 border-emerald-300 bg-white px-3 py-1 rounded-lg text-[8px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all">VIEW QR</button>
+                        <button onclick="window.deletePayout('${r.id}')" class="bg-rose-600 text-white text-[9px] px-3 py-1 rounded font-black uppercase">PAID / DEL</button>
                     </div>
-                </div>`).join('') || "<p class='p-5 text-center text-slate-400 font-bold text-xs'>No pending payout requests.</p>";
+                </div>`).join('') || "<p class='p-10 text-center text-slate-400 font-bold text-xs uppercase tracking-widest'>No pending payout requests.</p>";
         }
 
-        // --- UTILITIES ---
+        // --- SEARCH FUNCTIONS ---
         window.searchGlobalPlayer = function() {
             const input = document.getElementById("globalSearchInput").value.trim().toLowerCase();
             const resultBox = document.getElementById("globalSearchResult");
@@ -234,7 +164,52 @@
             });
         }
 
-        // --- ADMIN HUB ---
+        window.searchFeePlayer = function() {
+            const input = document.getElementById("feePlayerSearch").value.trim().toLowerCase();
+            const list = document.getElementById("feeSuggest");
+            list.innerHTML = ""; if(input.length < 1) return;
+            const matches = players.filter(p => p.name.toLowerCase().includes(input) || (p.sr && p.sr.toString().padStart(3,'0') === input)).slice(0, 5);
+            matches.forEach(p => {
+                const div = document.createElement("div");
+                div.className = "p-3 hover:bg-emerald-600 hover:text-white cursor-pointer border-b text-xs font-black";
+                div.innerText = `[${p.sr.toString().padStart(3,'0')}] ${p.name}`;
+                div.onclick = () => {
+                    selectedPlayerForFee = p;
+                    document.getElementById("feePlayerSearch").value = p.name;
+                    list.innerHTML = "";
+                    document.getElementById("feePlayerInfo").innerHTML = `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black italic">Selected: ${p.name} (SR ${p.sr})</span>`;
+                };
+                list.appendChild(div);
+            });
+        }
+
+        // --- SUBMIT LOGIC ---
+        window.submitFeeProof = async function() {
+            if(!selectedPlayerForFee) return alert("Select your name first!");
+            const fileInput = document.getElementById("feeFile");
+            if(!fileInput.files.length) return alert("Please upload your receiving QR screenshot!");
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const base64Data = e.target.result;
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'feeRequests'), {
+                    name: selectedPlayerForFee.name,
+                    sr: selectedPlayerForFee.sr,
+                    qrData: base64Data,
+                    timestamp: Date.now(),
+                    status: "Pending Verification"
+                });
+                alert("Your receiving QR has been sent to the committee!");
+                document.getElementById("feeOverlay").style.display = "none";
+                document.getElementById("feeForm").reset();
+                selectedPlayerForFee = null;
+                document.getElementById("feePlayerInfo").innerHTML = "";
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- ADMIN HELPERS ---
         window.verifyAccessAndShow = function() {
             if(document.getElementById("accessInput").value === "723156") {
                 isAdminLoggedIn = true;
@@ -277,7 +252,21 @@
             document.getElementById("pinInput").value = "";
         }
 
-        window.deletePayout = async function(id) { if(confirm("Paid or Delete?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'feeRequests', id)); }
+        async function executeSaleFinal(data) {
+            const { srStr, price, team } = data;
+            const player = players.find(p => p.sr && p.sr.toString().padStart(3, '0') === srStr);
+            if(!player) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'soldPlayers'), { sr: Number(player.sr), name: player.name, cat: player.cat, price: Number(price), bidder: team, timestamp: Date.now() });
+            document.getElementById("saleForm").reset(); 
+            document.getElementById("selectedPlayerInfo").innerText = "None";
+        }
+
+        async function recallPlayerFinal(data) {
+            const { docId } = data;
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'soldPlayers', docId));
+        }
+
+        window.deletePayout = async function(id) { if(confirm("Confirm Paid / Delete?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'feeRequests', id)); }
         window.approveComment = async function(id) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id), { approved: true }); }
         window.deleteComment = async function(id) { if(confirm("Del?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id)); }
 
@@ -324,7 +313,7 @@
             selectors.forEach(id => {
                 const el = document.getElementById(id);
                 if (!el) return;
-                el.innerHTML = (id === "teamTrackerSelect") ? '<option value="">-- Choose Team to View Squad --</option>' : '<option value="">-- Select Team --</option>';
+                el.innerHTML = (id === "teamTrackerSelect") ? '<option value="">-- View Team Squad --</option>' : '<option value="">-- Select Team --</option>';
                 teams.forEach(t => {
                     const opt = document.createElement("option");
                     opt.value = t; opt.innerText = t; el.appendChild(opt);
@@ -343,7 +332,7 @@
         #adminFab, #logoutFab { position: fixed; top: 15px; right: 15px; padding: 8px 18px; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 6000; text-transform: uppercase; border: 1px solid rgba(255,255,255,0.1); }
         #adminFab { background: #1e293b; } #logoutFab { background: #e11d48; }
 
-        #accessOverlay, #pinOverlay, #fanSayOverlay, #voteOverlay, #feeOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); display: none; justify-content: center; align-items: center; z-index: 9000; backdrop-filter: blur(10px); }
+        #accessOverlay, #pinOverlay, #fanSayOverlay, #voteOverlay, #feeOverlay, #qrViewOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); display: none; justify-content: center; align-items: center; z-index: 9000; backdrop-filter: blur(10px); }
         
         .footer-middle { font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 2.5px; text-align: center; padding: 40px 0; border-top: 1px solid #e2e8f0; margin-top: 50px; }
         
@@ -355,7 +344,7 @@
 </head>
 <body class="p-4 pt-16 md:p-8">
 
-    <!-- OVERLAYS -->
+    <!-- MODAL OVERLAYS -->
     <div id="voteOverlay">
         <div class="bg-white p-8 rounded-[3rem] w-full max-w-4xl shadow-2xl border-4 border-slate-50 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-8 border-b pb-4">
@@ -370,6 +359,7 @@
                     <div id="container_bowler" class="bg-rose-50 p-5 rounded-3xl border"><h4 class="text-xs font-black mb-3">Best Bowler</h4><div class="relative"><input type="text" id="voteSearch_bowler" onkeyup="window.searchVotePlayer('bowler')" placeholder="Search Player..." class="w-full p-3 rounded-xl border-none font-black text-sm shadow-sm"><div id="voteSuggest_bowler" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div></div></div>
                     <button onclick="window.submitAllVotes()" class="w-full p-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl uppercase tracking-widest">SUBMIT ALL VOTES</button>
                 </div>
+                <!-- POPUP ANALYTICS -->
                 <div class="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
                     <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center underline">Live Vote Stats</h4>
                     <div class="space-y-8">
@@ -383,10 +373,11 @@
         </div>
     </div>
 
+    <!-- PLAYER FEE MODAL (PAYOUT HUB) -->
     <div id="feeOverlay">
         <div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-md shadow-2xl border-4 border-slate-50">
             <h3 class="text-2xl font-black text-slate-900 mb-2 uppercase italic">Player Payout Hub</h3>
-            <p class="text-[10px] font-bold text-slate-400 mb-4 uppercase">Upload your QR so committee can pay you!</p>
+            <p class="text-[10px] font-bold text-slate-400 mb-4 uppercase">Upload your receiving QR for payment</p>
             <div id="feePlayerInfo" class="mb-4"></div>
             <form id="feeForm" class="space-y-4">
                 <div class="relative">
@@ -394,8 +385,8 @@
                     <div id="feeSuggest" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1 text-left"></div>
                 </div>
                 <div class="text-left bg-slate-50 p-5 rounded-3xl border-2 border-dashed border-slate-200">
-                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2">Upload YOUR Receiving QR</label>
-                    <input type="file" id="feeFile" class="w-full p-3 rounded-2xl font-bold mt-1 text-[11px]">
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2">Upload YOUR UPI QR (Screenshot)</label>
+                    <input type="file" id="feeFile" accept="image/*" class="w-full p-3 rounded-2xl font-bold mt-1 text-[11px]">
                 </div>
                 <div class="flex gap-3 pt-4">
                     <button type="button" onclick="document.getElementById('feeOverlay').style.display='none'" class="flex-1 p-4 rounded-2xl bg-slate-100 text-slate-600 font-bold uppercase text-xs">Cancel</button>
@@ -405,12 +396,24 @@
         </div>
     </div>
 
-    <!-- OTHER OVERLAYS REMAIN SAME (ACCESS, PIN, FAN SAY) -->
-    <div id="accessOverlay"><div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-xs shadow-2xl border-4"><h3 class="text-xl font-black mb-2 uppercase">Admin Entry</h3><input type="password" id="accessInput" placeholder="••••••" class="w-full text-center text-4xl p-4 rounded-2xl bg-slate-50 mb-8 outline-none"><button onclick="window.verifyAccessAndShow()" class="w-full p-3 rounded-xl bg-blue-600 text-white font-black uppercase text-xs">Unlock</button></div></div>
+    <!-- ADMIN QR VIEWER -->
+    <div id="qrViewOverlay">
+        <div class="bg-white p-6 rounded-[3rem] text-center w-full max-w-sm shadow-2xl relative">
+            <button onclick="window.closeQRViewer()" class="absolute top-5 right-5 text-slate-400 font-black">X</button>
+            <h3 class="text-xl font-black mb-4 uppercase italic">Player Receiving QR</h3>
+            <div class="bg-slate-100 p-2 rounded-2xl">
+                <img id="viewedQRImg" src="" class="w-full h-auto rounded-xl shadow-inner">
+            </div>
+            <p class="mt-4 text-[10px] font-bold text-slate-400 uppercase italic">Scan to Pay via UPI</p>
+        </div>
+    </div>
+
+    <!-- OTHER ADMIN OVERLAYS -->
+    <div id="accessOverlay"><div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-xs shadow-2xl border-4"><h3 class="text-xl font-black mb-2 uppercase">Admin Hub</h3><input type="password" id="accessInput" placeholder="••••••" class="w-full text-center text-4xl p-4 rounded-2xl bg-slate-50 mb-8 outline-none"><button onclick="window.verifyAccessAndShow()" class="w-full p-3 rounded-xl bg-blue-600 text-white font-black uppercase text-xs">Unlock</button></div></div>
     <div id="pinOverlay"><div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-xs shadow-2xl border-4"><h3 class="text-xl font-black mb-6 uppercase">Confirm PIN</h3><input type="password" id="pinInput" maxlength="4" placeholder="••••" class="w-full text-center text-5xl p-4 rounded-2xl bg-slate-50 mb-8 outline-none"><button onclick="window.verifyAndExecute()" class="w-full p-4 rounded-xl bg-emerald-600 text-white font-black uppercase text-xs shadow-lg">Confirm</button></div></div>
     <div id="fanSayOverlay"><div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-md shadow-2xl border-4"><h3 class="text-2xl font-black mb-2 uppercase italic">Fan Talk</h3><input type="text" id="fanSenderInput" placeholder="Name" class="w-full p-4 rounded-2xl bg-slate-50 mb-3 outline-none"><textarea id="fanCommentInput" placeholder="Comment..." rows="3" class="w-full p-4 rounded-2xl bg-slate-50 mb-8 outline-none"></textarea><div class="flex gap-3"><button onclick="document.getElementById('fanSayOverlay').style.display='none'" class="flex-1 p-3 rounded-xl bg-slate-100 font-bold text-xs">Close</button><button onclick="window.submitFanComment()" class="flex-1 p-3 rounded-xl bg-amber-600 text-white font-black text-xs">Submit</button></div></div></div>
 
-    <!-- ADMIN STATIC BUTTON -->
+    <!-- FIXED ADMIN BUTTONS -->
     <div id="logoutFab" style="display:none;" onclick="window.logoutAdmin()">LOGOUT</div>
     <div id="adminFab" onclick="window.openAccessModal()">ADMIN</div>
 
@@ -422,13 +425,13 @@
             
             <div class="flex flex-col items-center gap-6 mt-4">
                 <p class="text-sm md:text-2xl text-sky-600 font-black tracking-[0.3em] uppercase">Org by Adra Wireless</p>
-                
                 <div class="flex items-center gap-6 md:gap-10">
+                    <!-- SMALLER GLOWING BUTTONS -->
                     <button onclick="window.openVoteModal()" class="w-28 h-28 md:w-32 md:h-32 rounded-full bg-blue-600 text-white font-black text-[8px] md:text-[9px] uppercase flex flex-col items-center justify-center text-center p-5 border-4 border-blue-400 animate-glow-blue transition-all active:scale-90 shadow-xl">
                         <span class="leading-tight">VOTE FOR<br>FAV TEAM</span>
                     </button>
                     <button onclick="window.openFeeModal()" class="w-28 h-28 md:w-32 md:h-32 rounded-full bg-emerald-600 text-white font-black text-[8px] md:text-[9px] uppercase flex flex-col items-center justify-center text-center p-5 border-4 border-emerald-400 animate-glow-emerald transition-all active:scale-90 shadow-xl">
-                        <span class="leading-tight">PAY PLAYER<br>FEE</span>
+                        <span class="leading-tight">PAYOUT<br>RECEIVE QR</span>
                     </button>
                 </div>
             </div>
@@ -443,7 +446,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 max-w-5xl mx-auto">
             <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl relative">
                 <div class="absolute -top-3 left-6 bg-slate-900 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest">Player Status Lookup</div>
-                <input type="text" id="globalSearchInput" onkeyup="window.searchGlobalPlayer()" placeholder="Search Name or SR..." class="w-full p-3 rounded-2xl bg-slate-50 border-none outline-none text-sm font-black focus:ring-2 focus:ring-sky-500 mt-2 transition-all">
+                <input type="text" id="globalSearchInput" onkeyup="window.searchGlobalPlayer()" placeholder="Search Name or SR..." class="w-full p-3 rounded-2xl bg-slate-50 border-none outline-none text-sm font-black focus:ring-2 focus:ring-sky-500 mt-2">
                 <div id="globalSearchResult" class="mt-2 bg-white border border-slate-100 rounded-xl max-h-48 overflow-y-auto divide-y divide-slate-50 shadow-2xl"></div>
             </div>
             <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl relative">
@@ -454,18 +457,18 @@
 
         <div id="adminBoard" class="mb-10 transition-all"></div>
 
-        <!-- VOTING ANALYTICS SECTION (BOTTOM) -->
+        <!-- VOTING ANALYTICS (BOTTOM) -->
         <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-10 shadow-xl max-w-5xl mx-auto relative">
             <div class="absolute -top-3 left-6 bg-blue-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest shadow-md">Voting Meter</div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 pt-4">
-                <div><h5 class="text-[8px] font-black text-slate-400 uppercase mb-2 border-b pb-1 text-center italic tracking-widest">Winner Race</h5><div id="voteResult_bottom_winner"></div></div>
-                <div><h5 class="text-[8px] font-black text-slate-400 uppercase mb-2 border-b pb-1 text-center italic tracking-widest">Tournament POT</h5><div id="voteResult_bottom_pot"></div></div>
-                <div><h5 class="text-[8px] font-black text-slate-400 uppercase mb-2 border-b pb-1 text-center italic tracking-widest">Best Batsman</h5><div id="voteResult_bottom_batsman"></div></div>
-                <div><h5 class="text-[8px] font-black text-slate-400 uppercase mb-2 border-b pb-1 text-center italic tracking-widest">Best Bowler</h5><div id="voteResult_bottom_bowler"></div></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 pt-4 text-center">
+                <div><h5 class="text-[8px] font-black text-slate-400 uppercase mb-2 border-b pb-1 italic tracking-widest">Winner</h5><div id="voteResult_bottom_winner"></div></div>
+                <div><h5 class="text-[8px] font-black text-slate-400 uppercase mb-2 border-b pb-1 italic tracking-widest">POT</h5><div id="voteResult_bottom_pot"></div></div>
+                <div><h5 class="text-[8px] font-black text-slate-400 uppercase mb-2 border-b pb-1 italic tracking-widest">Batsman</h5><div id="voteResult_bottom_batsman"></div></div>
+                <div><h5 class="text-[8px] font-black text-slate-400 uppercase mb-2 border-b pb-1 italic tracking-widest">Bowler</h5><div id="voteResult_bottom_bowler"></div></div>
             </div>
         </div>
 
-        <!-- FAN SAY (AT THE BOTTOM) -->
+        <!-- FAN SAY -->
         <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-10 shadow-xl max-w-5xl mx-auto relative">
             <div class="absolute -top-3 left-6 bg-amber-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest">What's Fan Say?</div>
             <div class="flex items-center gap-8 pt-4">
@@ -477,7 +480,7 @@
             </div>
         </div>
 
-        <!-- HIDDEN SECTIONS FOR ADMIN -->
+        <!-- ADMIN ONLY PANELS -->
         <div id="saleEntrySection" style="display:none;" class="bg-white p-8 rounded-[3rem] border-2 border-emerald-500 mb-10 shadow-2xl max-w-3xl mx-auto relative transition-all">
             <div class="absolute -top-4 left-10 bg-emerald-600 text-white text-[10px] font-black px-6 py-2 rounded-full uppercase tracking-[0.2em]">Transaction Hub</div>
             <form id="saleForm" onsubmit="window.startSaleProcess(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-6">
