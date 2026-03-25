@@ -64,51 +64,20 @@
             if(viewer && img) { img.src = data; viewer.style.display = "flex"; }
         }
 
-        window.searchFeePlayer = function() {
-            const input = document.getElementById("feePlayerSearch").value.trim().toLowerCase();
-            const list = document.getElementById("feeSuggest");
-            list.innerHTML = ""; if(input.length < 1) return;
-            const matches = players.filter(p => p.name.toLowerCase().includes(input) || (p.sr && p.sr.toString().padStart(3,'0') === input)).slice(0, 5);
-            matches.forEach(p => {
-                const div = document.createElement("div");
-                div.className = "p-3 hover:bg-emerald-600 hover:text-white cursor-pointer border-b text-xs font-black";
-                div.innerText = `[${p.sr.toString().padStart(3,'0')}] ${p.name}`;
-                div.onclick = () => {
-                    selectedPlayerForFee = p;
-                    document.getElementById("feePlayerSearch").value = p.name;
-                    list.innerHTML = "";
-                    document.getElementById("feePlayerInfo").innerHTML = `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black italic">Selected: ${p.name} (SR ${p.sr})</span>`;
-                };
-                list.appendChild(div);
-            });
-        }
-
-        window.submitFeeProof = async function() {
-            if(!selectedPlayerForFee) return alert("Select your name first!");
-            const fileInput = document.getElementById("feeFile");
-            if(!fileInput.files.length) return alert("Please upload your receiving QR screenshot!");
-            
-            const file = fileInput.files[0];
+        // --- SQUAD QR UPLOAD LOGIC ---
+        window.handleSquadQRUpload = function(docId, input) {
+            if(!input.files.length) return;
+            const file = input.files[0];
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const base64Data = e.target.result;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'feeRequests'), {
-                    name: selectedPlayerForFee.name,
-                    sr: selectedPlayerForFee.sr,
-                    qrData: base64Data,
-                    timestamp: Date.now(),
-                    status: "Pending"
-                });
-                alert("Your receiving QR has been sent to the committee!");
-                document.getElementById("feeOverlay").style.display = "none";
-                document.getElementById("feeForm").reset();
-                selectedPlayerForFee = null;
-                document.getElementById("feePlayerInfo").innerHTML = "";
+                const ref = doc(db, 'artifacts', appId, 'public', 'data', 'soldPlayers', docId);
+                await updateDoc(ref, { qrData: base64Data });
+                alert("QR Uploaded Successfully!");
             };
             reader.readAsDataURL(file);
         }
 
-        // --- NEW PAYMENT LOGIC ---
         window.markAsPaid = async (docId) => {
             if(!confirm("Are you sure this player is paid?")) return;
             const ref = doc(db, 'artifacts', appId, 'public', 'data', 'soldPlayers', docId);
@@ -131,7 +100,7 @@
             const pv = INITIAL_PURSE - spent;
             const slotsLeft = MAX_PLAYERS - sq.length;
 
-            let statsHtml = isAdminLoggedIn ? `<div class="grid grid-cols-2 gap-4 mt-2"><div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col"><span class="text-[10px] text-emerald-600 font-black uppercase">Remaining Budget</span><span class="text-emerald-700 font-mono font-black text-2xl">₹${pv}</span></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col"><span class="text-[10px] text-rose-600 font-black uppercase">Slots Left</span><span class="text-rose-700 font-black text-2xl">${slotsLeft}</span></div></div>` : '';
+            let statsHtml = isAdminLoggedIn ? `<div class="grid grid-cols-2 gap-4 mt-2"><div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col"><span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest leading-none">Remaining Budget</span><span class="text-emerald-700 font-mono font-black text-2xl mt-1">₹${pv}</span></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col"><span class="text-[10px] text-rose-600 font-black uppercase tracking-widest leading-none">Draft Slots Left</span><span class="text-rose-700 font-black text-2xl mt-1">${slotsLeft}</span></div></div>` : '';
 
             document.getElementById("adminBoard").innerHTML = `
                 <div class="card p-6 border border-slate-200 rounded-[2.5rem] bg-white flex flex-col shadow-xl max-w-4xl mx-auto w-full transition-all duration-500">
@@ -144,6 +113,16 @@
                         sq.map((p, i) => {
                             const payable = p.price - 200;
                             const statusLabel = p.paid ? `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">PAID</span>` : `<span class="text-rose-600 font-black text-sm italic">Payable: ₹${payable}</span>`;
+                            
+                            // Actions for users (Upload/View QR)
+                            const qrAction = `
+                                <div class="flex gap-2 items-center">
+                                    <input type="file" id="sq_file_${p.id}" class="hidden" onchange="window.handleSquadQRUpload('${p.id}', this)">
+                                    <button onclick="document.getElementById('sq_file_${p.id}').click()" class="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-slate-200 transition-all">UPLOAD QR</button>
+                                    ${p.qrData ? `<button onclick="window.viewQR('${p.qrData}')" class="text-emerald-700 font-black text-[9px] underline uppercase ml-1">SHOW QR</button>` : ''}
+                                </div>
+                            `;
+
                             const adminButtons = isAdminLoggedIn ? `
                                 <div class="flex gap-2 items-center">
                                     ${!p.paid ? `<button onclick="window.markAsPaid('${p.id}')" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-emerald-700 transition-all">MARK PAID</button>` : ''}
@@ -152,35 +131,20 @@
                             ` : '';
 
                             return `
-                            <div class="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <div class="flex flex-col sm:flex-row justify-between sm:items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm gap-3">
                                 <div class="flex flex-col">
                                     <span class="text-sm text-slate-800 font-black">#${i+1} ${window.getEmoji(p.cat)} ${p.name}</span>
                                     <span class="text-[9px] font-bold text-slate-400 uppercase mt-1">Auctioned for ₹${p.price}</span>
                                 </div>
-                                <div class="flex items-center gap-6">
+                                <div class="flex flex-wrap items-center gap-4">
                                     ${statusLabel}
+                                    ${qrAction}
                                     ${adminButtons}
                                 </div>
                             </div>`;
                         }).join('')}
                     </div>
                 </div>`;
-        }
-
-        window.renderAdminPayouts = function() {
-            const container = document.getElementById("adminPayoutList");
-            if(!container) return;
-            container.innerHTML = payoutRequests.sort((a,b) => b.timestamp - a.timestamp).map(r => `
-                <div class="flex justify-between items-center p-3 border-b border-slate-100 bg-emerald-50">
-                    <div class="flex-1">
-                        <p class="text-xs font-black uppercase">${r.name} (SR ${r.sr})</p>
-                        <p class="text-[9px] font-bold text-slate-400 mt-1 italic uppercase">Requested Payout Hub</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="window.viewQR('${r.qrData}')" class="text-emerald-700 border-2 border-emerald-300 bg-white px-3 py-1 rounded-lg text-[8px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all">VIEW QR</button>
-                        <button onclick="window.deletePayout('${r.id}')" class="bg-rose-600 text-white text-[9px] px-3 py-1 rounded font-black uppercase">MARK AS PAID</button>
-                    </div>
-                </div>`).join('') || "<p class='p-10 text-center text-slate-400 font-bold text-xs uppercase italic'>No pending payout requests.</p>";
         }
 
         // --- UTILITIES ---
@@ -241,7 +205,6 @@
                 isAdminLoggedIn = true;
                 document.getElementById("saleEntrySection").style.display = "block";
                 document.getElementById("adminModerationSection").style.display = "block";
-                document.getElementById("adminPayoutSection").style.display = "block";
                 document.getElementById("accessOverlay").style.display = "none";
                 document.getElementById("adminFab").style.display = "none"; 
                 document.getElementById("logoutFab").style.display = "flex"; 
@@ -252,7 +215,6 @@
             isAdminLoggedIn = false;
             document.getElementById("saleEntrySection").style.display = "none";
             document.getElementById("adminModerationSection").style.display = "none";
-            document.getElementById("adminPayoutSection").style.display = "none";
             document.getElementById("adminFab").style.display = "flex"; 
             document.getElementById("logoutFab").style.display = "none"; 
             window.renderBoard(); 
@@ -284,14 +246,13 @@
                 cat: player.cat, 
                 price: Number(price), 
                 bidder: team, 
-                paid: false, // New field for payment tracking
+                paid: false,
                 timestamp: Date.now() 
             });
             document.getElementById("saleForm").reset(); 
             document.getElementById("selectedPlayerInfo").innerText = "None";
         }
 
-        window.deletePayout = async function(id) { if(confirm("Confirm Paid & Delete from Requests?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'feeRequests', id)); }
         window.approveComment = async function(id) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id), { approved: true }); }
         window.deleteComment = async function(id) { if(confirm("Del?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fanComments', id)); }
 
@@ -314,10 +275,6 @@
                 window.renderApprovedComments();
                 window.renderAdminComments();
             });
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'feeRequests'), (snap) => {
-                payoutRequests = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                window.renderAdminPayouts();
-            });
         }
 
         async function init() {
@@ -339,7 +296,7 @@
         window.onload = () => { 
             const sel = document.getElementById("teamTrackerSelect");
             if (sel) {
-                sel.innerHTML = '<option value="">-- View Team Squad --</option>';
+                sel.innerHTML = '<option value="">-- Choose Team to View Squad --</option>';
                 teams.forEach(t => { const opt = document.createElement("option"); opt.value = t; opt.innerText = t; sel.appendChild(opt); });
             }
             const teamSel = document.getElementById("teamSelect");
@@ -359,7 +316,7 @@
         #adminFab, #logoutFab { position: fixed; top: 15px; right: 15px; padding: 8px 18px; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 6000; text-transform: uppercase; border: 1px solid rgba(255,255,255,0.1); }
         #adminFab { background: #1e293b; } #logoutFab { background: #e11d48; }
 
-        #accessOverlay, #pinOverlay, #fanSayOverlay, #feeOverlay, #qrViewOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); display: none; justify-content: center; align-items: center; z-index: 9000; backdrop-filter: blur(10px); }
+        #accessOverlay, #pinOverlay, #fanSayOverlay, #qrViewOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); display: none; justify-content: center; align-items: center; z-index: 9000; backdrop-filter: blur(10px); }
         
         @keyframes pulse-emerald { 0%, 100% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.6); } 50% { box-shadow: 0 0 35px rgba(16, 185, 129, 1); } }
         .animate-glow-emerald { animation: pulse-emerald 2s infinite ease-in-out; }
@@ -367,39 +324,15 @@
 </head>
 <body class="p-4 pt-16 md:p-8">
 
-    <!-- OVERLAYS -->
-    <div id="feeOverlay">
-        <div class="bg-white p-10 rounded-[3rem] text-center w-full max-w-md shadow-2xl border-4 border-slate-50">
-            <h3 class="text-2xl font-black text-slate-900 mb-2 uppercase italic">Player Payout Hub</h3>
-            <p class="text-[10px] font-bold text-slate-400 mb-6 uppercase">Upload YOUR QR so Committee can pay you!</p>
-            <div id="feePlayerInfo" class="mb-4"></div>
-            <form id="feeForm" class="space-y-4">
-                <div class="relative text-left">
-                    <label class="text-[9px] font-black uppercase text-slate-400 ml-2">Search Your Name/SR</label>
-                    <input type="text" id="feePlayerSearch" onkeyup="window.searchFeePlayer()" placeholder="Type here..." class="w-full p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 font-bold outline-none">
-                    <div id="feeSuggest" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1"></div>
-                </div>
-                <div class="text-left bg-slate-50 p-5 rounded-3xl border-2 border-dashed border-slate-200">
-                    <label class="text-[10px] font-black uppercase text-slate-400 ml-2">Upload YOUR Receiving QR Image</label>
-                    <input type="file" id="feeFile" accept="image/*" class="w-full p-3 rounded-2xl font-bold mt-1 text-[11px]">
-                </div>
-                <div class="flex gap-3 pt-4">
-                    <button type="button" onclick="document.getElementById('feeOverlay').style.display='none'" class="flex-1 p-4 rounded-2xl bg-slate-100 text-slate-600 font-bold uppercase text-xs">Cancel</button>
-                    <button type="button" onclick="window.submitFeeProof()" class="flex-1 p-4 rounded-2xl bg-emerald-600 text-white font-black uppercase text-xs shadow-lg">Submit QR</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <!-- ADMIN QR VIEWER -->
     <div id="qrViewOverlay">
         <div class="bg-white p-6 rounded-[3rem] text-center w-full max-w-sm shadow-2xl relative">
             <button onclick="window.closeQRViewer()" class="absolute top-5 right-5 text-slate-400 font-black text-xl hover:text-slate-900">×</button>
-            <h3 class="text-xl font-black mb-4 uppercase italic tracking-tighter">Player's Receiving QR</h3>
+            <h3 class="text-xl font-black mb-4 uppercase italic tracking-tighter text-slate-900">Player's Receiving QR</h3>
             <div class="bg-slate-100 p-2 rounded-2xl">
                 <img id="viewedQRImg" src="" class="w-full h-auto rounded-xl shadow-inner border border-white">
             </div>
-            <p class="mt-4 text-[10px] font-bold text-slate-400 uppercase italic">Pay this player via UPI</p>
+            <p class="mt-4 text-[10px] font-bold text-slate-400 uppercase italic">Scan to pay this player via UPI</p>
         </div>
     </div>
 
@@ -420,11 +353,6 @@
             
             <div class="flex flex-col items-center gap-6 mt-4">
                 <p class="text-sm md:text-2xl text-sky-600 font-black tracking-[0.3em] uppercase">Org by Adra Wireless</p>
-                
-                <!-- PAY PLAYER FEE SPHERE BUTTON -->
-                <button onclick="window.openFeeModal()" class="w-32 h-32 md:w-36 md:h-36 rounded-full bg-emerald-600 text-white font-black text-[9px] md:text-[10px] uppercase flex flex-col items-center justify-center text-center p-6 shadow-[inset_-10px_-10px_30px_rgba(0,0,0,0.3)] border-4 border-emerald-400 animate-glow-emerald transition-all active:scale-90 shadow-xl">
-                    <span class="leading-tight">PAY<br>PLAYER FEE</span>
-                </button>
             </div>
 
             <div class="flex flex-col gap-2 mt-10">
@@ -446,6 +374,7 @@
             </div>
         </div>
 
+        <!-- SQUAD LISTING (Dynamic Board) -->
         <div id="adminBoard" class="mb-10 transition-all"></div>
 
         <!-- FAN SAY (AT THE BOTTOM) -->
@@ -471,12 +400,7 @@
             </form>
         </div>
 
-        <div id="adminPayoutSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-emerald-500 mb-10 shadow-2xl max-w-2xl mx-auto relative">
-            <div class="absolute -top-3 left-6 bg-emerald-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest shadow-md">Payout Requests Hub</div>
-            <div id="adminPayoutList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto mt-4"></div>
-        </div>
-
-        <div id="adminModerationSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-amber-500 mb-10 shadow-2xl max-w-2xl mx-auto relative">
+        <div id="adminModerationSection" style="display:none;" class="bg-white p-6 rounded-[2rem] border-2 border-amber-500 mb-10 shadow-2xl max-w-2xl mx-auto relative transition-all">
             <div class="absolute -top-3 left-6 bg-amber-600 text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest shadow-md">Comment Moderation</div>
             <div id="adminCommentList" class="divide-y divide-slate-100 max-h-64 overflow-y-auto mt-4"></div>
         </div>
